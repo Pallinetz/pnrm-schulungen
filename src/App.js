@@ -617,6 +617,111 @@ function exportExcel(schulungen, ma) {
   XLSX.writeFile(wb,`PNRM_Schulungen_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+async function signIn(email, password) {
+  const res = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
+    method:"POST",
+    headers:{ "apikey":SUPA_KEY, "Content-Type":"application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description||data.msg||"Login fehlgeschlagen");
+  return data;
+}
+async function signOut(token) {
+  await fetch(`${SUPA_URL}/auth/v1/logout`, {
+    method:"POST", headers:{ "apikey":SUPA_KEY, "Authorization":`Bearer ${token}` },
+  }).catch(()=>{});
+}
+function getSession() { try { return JSON.parse(localStorage.getItem("pnrm_admin")||"null"); } catch { return null; } }
+function saveSession(s) { localStorage.setItem("pnrm_admin", JSON.stringify(s)); }
+function clearSession() { localStorage.removeItem("pnrm_admin"); }
+
+function LoginModal({ onClose, onLogin }) {
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const submit = async () => {
+    if (!email||!pw) { setErr("Bitte E-Mail und Passwort eingeben."); return; }
+    setLoading(true); setErr("");
+    try { const s = await signIn(email, pw); saveSession(s); onLogin(s); }
+    catch(e) { setErr(e.message); }
+    setLoading(false);
+  };
+  return (
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white,borderRadius:18,padding:36,width:"90%",maxWidth:400,boxShadow:"0 24px 64px rgba(0,0,0,.18)" }}>
+        <h2 style={{ margin:"0 0 6px",fontSize:20,color:C.text }}>Admin-Login</h2>
+        <p style={{ margin:"0 0 20px",color:C.muted,fontSize:14 }}>Palliativ Netzwerk Rhein-Maas</p>
+        {err&&<div style={{ background:C.bad.bg,border:`1px solid ${C.bad.border}`,color:C.bad.text,padding:"10px 14px",borderRadius:10,marginBottom:14,fontSize:14 }}>{err}</div>}
+        <label style={{ display:"block",fontWeight:700,marginBottom:5,fontSize:14 }}>E-Mail</label>
+        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} style={{ width:"100%",fontSize:15,padding:11,border:`1px solid ${C.inputBorder}`,borderRadius:11,marginBottom:14,boxSizing:"border-box" }} placeholder="name@pallinetz.de" autoFocus />
+        <label style={{ display:"block",fontWeight:700,marginBottom:5,fontSize:14 }}>Passwort</label>
+        <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} style={{ width:"100%",fontSize:15,padding:11,border:`1px solid ${C.inputBorder}`,borderRadius:11,marginBottom:20,boxSizing:"border-box" }} />
+        <button onClick={submit} disabled={loading} style={{ width:"100%",background:C.blue,color:"#fff",border:0,borderRadius:12,padding:"13px 16px",fontWeight:700,fontSize:16,cursor:loading?"not-allowed":"pointer",opacity:loading?.65:1 }}>
+          {loading?"Wird angemeldet…":"Anmelden"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Passwort ändern ──────────────────────────────────────────────────────────
+async function changePassword(token, newPassword) {
+  const res = await fetch(`${SUPA_URL}/auth/v1/user`, {
+    method:"PUT",
+    headers:{ "apikey":SUPA_KEY, "Authorization":`Bearer ${token}`, "Content-Type":"application/json" },
+    body: JSON.stringify({ password: newPassword }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description||data.msg||"Fehler beim Ändern");
+  return data;
+}
+
+function PwChangeModal({ session, onClose, showToast }) {
+  const [current, setCurrent] = useState("");
+  const [neu, setNeu] = useState("");
+  const [neu2, setNeu2] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const submit = async () => {
+    if (!neu||!neu2) { setErr("Bitte neues Passwort zweimal eingeben."); return; }
+    if (neu !== neu2) { setErr("Passwörter stimmen nicht überein."); return; }
+    if (neu.length < 8) { setErr("Passwort muss mindestens 8 Zeichen lang sein."); return; }
+    setLoading(true); setErr("");
+    try {
+      await changePassword(session.access_token, neu);
+      showToast("✓ Passwort erfolgreich geändert.");
+      onClose();
+    } catch(e) { setErr(e.message); }
+    setLoading(false);
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white,borderRadius:18,padding:32,width:"90%",maxWidth:400,boxShadow:"0 24px 64px rgba(0,0,0,.18)" }}>
+        <h2 style={{ margin:"0 0 6px",fontSize:20 }}>Passwort ändern</h2>
+        <p style={{ margin:"0 0 20px",color:C.muted,fontSize:14 }}>{session?.user?.email}</p>
+        {err&&<div style={{ background:C.bad.bg,border:`1px solid ${C.bad.border}`,color:C.bad.text,padding:"10px 14px",borderRadius:10,marginBottom:14,fontSize:14 }}>{err}</div>}
+        {[["Neues Passwort",neu,setNeu],["Neues Passwort wiederholen",neu2,setNeu2]].map(([label,val,setter],i)=>(
+          <div key={i}>
+            <label style={{ display:"block",fontWeight:700,marginBottom:5,fontSize:14 }}>{label}</label>
+            <input type="password" value={val} onChange={e=>setter(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} style={{ width:"100%",fontSize:15,padding:11,border:`1px solid ${C.inputBorder}`,borderRadius:11,marginBottom:14,boxSizing:"border-box" }} placeholder="Mindestens 8 Zeichen" />
+          </div>
+        ))}
+        <div style={{ display:"flex", gap:10, marginTop:6 }}>
+          <button onClick={onClose} style={{ ...css.btnSec, flex:1 }}>Abbrechen</button>
+          <button onClick={submit} disabled={loading} style={{ ...css.btn, flex:1, opacity:loading?.65:1 }}>{loading?"Wird gespeichert…":"Speichern"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Wissensdatenbank ─────────────────────────────────────────────────────────
 
 const dbW = {
@@ -654,7 +759,7 @@ function renderMarkdown(text) {
     .replace(/\n/g, '<br/>');
 }
 
-function ArtikelDetail({ artikel, dateien, onClose, onEdit }) {
+function ArtikelDetail({ artikel, dateien, onClose, onEdit, isAdmin }) {
   return (
     <div style={{ fontFamily:"Arial,Helvetica,sans-serif", color:"#172033" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
@@ -662,7 +767,7 @@ function ArtikelDetail({ artikel, dateien, onClose, onEdit }) {
           {artikel.wichtig && <span style={{ background:"#fff1f0", color:"#842029", border:"1px solid #ffccc7", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700, marginRight:8 }}>⚠️ WICHTIG</span>}
           <span style={{ background:"#eef5ff", color:"#2459b8", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>{artikel.unterkategorie||"Allgemein"}</span>
         </div>
-        <button onClick={onEdit} style={{ background:"#eef5ff", color:"#2459b8", border:"1px solid #d7e0ec", borderRadius:10, padding:"7px 14px", fontWeight:700, fontSize:13, cursor:"pointer" }}>✏️ Bearbeiten</button>
+        {isAdmin&&<button onClick={onEdit} style={{ background:"#eef5ff", color:"#2459b8", border:"1px solid #d7e0ec", borderRadius:10, padding:"7px 14px", fontWeight:700, fontSize:13, cursor:"pointer" }}>✏️ Bearbeiten</button>}
       </div>
       <h2 style={{ margin:"0 0 16px", fontSize:22 }}>{artikel.titel}</h2>
       <div style={{ background:"#fbfcff", border:"1px solid #d7e0ec", borderRadius:12, padding:"18px 20px", marginBottom:16, lineHeight:1.7, fontSize:15 }}
@@ -775,7 +880,7 @@ function ArtikelForm({ artikel, kategorien, onSave, onClose }) {
   );
 }
 
-function WissenTab({ showToast }) {
+function WissenTab({ showToast, isAdmin }) {
   const [kategorien, setKategorien] = useState([]);
   const [artikel, setArtikel] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -859,7 +964,7 @@ function WissenTab({ showToast }) {
             {k.icon} {k.name}
           </button>
         ))}
-        <button onClick={()=>{ setActiveArtikel(null); setModal("neu"); }} style={{ background:"#2459b8", color:"#fff", border:0, borderRadius:999, padding:"7px 16px", fontWeight:700, fontSize:13, cursor:"pointer", marginLeft:"auto" }}>+ Neuer Artikel</button>
+        {isAdmin&&<button onClick={()=>{ setActiveArtikel(null); setModal("neu"); }} style={{ background:"#2459b8", color:"#fff", border:0, borderRadius:999, padding:"7px 16px", fontWeight:700, fontSize:13, cursor:"pointer", marginLeft:"auto" }}>+ Neuer Artikel</button>}
       </div>
 
       {/* Suchergebnis-Info */}
@@ -890,9 +995,9 @@ function WissenTab({ showToast }) {
       {/* Modals */}
       {modal==="detail" && activeArtikel && (
         <Modal onClose={()=>setModal(null)} wide>
-          <ArtikelDetail artikel={activeArtikel} dateien={dateien} onClose={()=>setModal(null)} onEdit={()=>setModal("edit")} />
+          <ArtikelDetail artikel={activeArtikel} dateien={dateien} onClose={()=>setModal(null)} onEdit={()=>setModal("edit")} isAdmin={isAdmin} />
           <div style={{ borderTop:"1px solid #d7e0ec", marginTop:16, paddingTop:14, display:"flex", justifyContent:"flex-end" }}>
-            <button onClick={()=>deleteArtikel(activeArtikel.id)} style={{ background:"#fff1f0", color:"#842029", border:"1px solid #ffccc7", borderRadius:10, padding:"8px 14px", fontWeight:700, fontSize:13, cursor:"pointer" }}>🗑 Löschen</button>
+            {isAdmin&&<button onClick={()=>deleteArtikel(activeArtikel.id)} style={{ background:"#fff1f0", color:"#842029", border:"1px solid #ffccc7", borderRadius:10, padding:"8px 14px", fontWeight:700, fontSize:13, cursor:"pointer" }}>🗑 Löschen</button>}
           </div>
         </Modal>
       )}
@@ -925,6 +1030,12 @@ function ArtikelKarte({ a, kategorien, onClick }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const [session, setSession] = useState(()=>getSession());
+  const [showLogin, setShowLogin] = useState(false);
+  const [showPwChange, setShowPwChange] = useState(false);
+  const isAdmin = !!session?.access_token;
+  const handleLogin = (s) => { setSession(s); setShowLogin(false); };
+  const handleLogout = async () => { await signOut(session?.access_token); clearSession(); setSession(null); };
   const [schulungen, setSchulungen] = useState([]);
   const [ma, setMa] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1008,7 +1119,8 @@ export default function App() {
     e.target.value = "";
   };
 
-  const filtered = schulungen.filter(s=>{
+  const visibleSchulungen = isAdmin ? schulungen : schulungen.filter(s=>s.status==="Freigegeben");
+  const filtered = visibleSchulungen.filter(s=>{
     const mF = filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&s.empfaenger?.length>0);
     const mS = !search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());
     return mF&&mS;
@@ -1053,7 +1165,7 @@ export default function App() {
         </div>
 
         <div style={{ display:"flex", borderBottom:`2px solid ${C.border}`, marginBottom:18 }}>
-          {[["schulungen","Schulungen"],["wissen","Wissen"],["mitarbeiter","Mitarbeiter"]].map(([id,label])=>(
+          {(isAdmin ? [["schulungen","Schulungen"],["wissen","Wissen"],["mitarbeiter","Mitarbeiter"]] : [["schulungen","Schulungen"],["wissen","Wissen"]]).map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} style={{ background:"none", border:"none", borderBottom:tab===id?`3px solid ${C.blue}`:"3px solid transparent", color:tab===id?C.blue:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:400, marginBottom:-2 }}>{label}</button>
           ))}
         </div>
@@ -1083,9 +1195,9 @@ export default function App() {
                       <p style={{ margin:0, fontSize:12, color:C.muted }}>{sc.dokNr} · Version {sc.version} · Gültig ab {sc.gueltigAb}</p>
                     </div>
                     <div style={{ display:"flex", gap:8 }} onClick={e=>e.stopPropagation()}>
-                      <button onClick={()=>{setActive(sc);setModal("edit");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>✏️</button>
-                      {sent>0&&<button onClick={()=>{setActive(sc);setModal("nw");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>📄</button>}
-                      {sc.status==="Freigegeben"&&<button onClick={()=>{setActive(sc);setModal("send");}} style={{ ...css.btn, padding:"7px 13px", fontSize:13 }}>Senden</button>}
+                      {isAdmin&&<button onClick={()=>{setActive(sc);setModal("edit");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>✏️</button>}
+                      {isAdmin&&sent>0&&<button onClick={()=>{setActive(sc);setModal("nw");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>📄</button>}
+                      {isAdmin&&sc.status==="Freigegeben"&&<button onClick={()=>{setActive(sc);setModal("send");}} style={{ ...css.btn, padding:"7px 13px", fontSize:13 }}>Senden</button>}
                     </div>
                   </div>
                 </div>
@@ -1102,6 +1214,8 @@ export default function App() {
       {modal==="send"&&active&&<Modal onClose={()=>setModal(null)}><SendModal sc={active} ma={ma} onClose={()=>setModal(null)} onSend={sendSchul} /></Modal>}
       {modal==="nw"&&active&&<Modal onClose={()=>setModal(null)} wide><NachweisModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
 
+      {showLogin&&<LoginModal onClose={()=>setShowLogin(false)} onLogin={handleLogin} />}
+      {showPwChange&&session&&<PwChangeModal session={session} onClose={()=>setShowPwChange(false)} showToast={showToast} />}
       {toast&&<div style={{ position:"fixed",bottom:22,right:22,background:toast.type==="warn"?C.warn.bg:C.good.bg,border:`1px solid ${toast.type==="warn"?C.warn.border:C.good.border}`,color:toast.type==="warn"?C.warn.text:C.good.text,padding:"12px 20px",borderRadius:12,fontSize:14,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.12)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}>{toast.msg}</div>}
       <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} *{box-sizing:border-box} select option{background:#fff;color:#172033}`}</style>
     </div>
