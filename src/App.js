@@ -1144,10 +1144,15 @@ export default function App() {
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
             <div style={{ width:8, height:8, borderRadius:"50%", background: error?"#e05c5c":loading?"#e0a95c":"#2eb88a" }} title={error?"Fehler":loading?"Lädt...":"Verbunden"} />
-            <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>Excel-Export</button>
-            {tab==="schulungen"&&<button onClick={()=>importRef.current.click()} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>JSON importieren</button>}
+            {isAdmin&&<span style={{ fontSize:12, color:"#0f5331", background:"#eefaf2", border:"1px solid #b8e2c7", borderRadius:999, padding:"4px 10px", fontWeight:700 }}>🔒 Admin</span>}
+            {isAdmin&&<button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>Excel-Export</button>}
+            {isAdmin&&tab==="schulungen"&&<button onClick={()=>importRef.current.click()} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>JSON importieren</button>}
             <input ref={importRef} type="file" accept=".json" onChange={importSchulungJSON} style={{ display:"none" }} />
-            {tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={css.btn}>+ Neue Schulung</button>}
+            {isAdmin&&tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={css.btn}>+ Neue Schulung</button>}
+            {isAdmin
+              ? <><button onClick={()=>setShowPwChange(true)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>🔑 Passwort</button><button onClick={handleLogout} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px", color:C.bad.text, borderColor:C.bad.border }}>Abmelden</button></>
+              : <button onClick={()=>setShowLogin(true)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>🔒 Admin</button>
+            }
           </div>
         </div>
       </header>
@@ -1206,7 +1211,7 @@ export default function App() {
           </>
         ) : null}
         {tab==="mitarbeiter" && <MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} />}
-        {tab==="wissen" && <WissenTab showToast={showToast} />}
+        {tab==="wissen" && <WissenTab showToast={showToast} isAdmin={isAdmin} />}
       </div>
 
       {(modal==="neu"||modal==="edit")&&<Modal onClose={()=>setModal(null)} wide><SchulungForm schulung={modal==="edit"?active:null} onSave={saveSchul} onClose={()=>setModal(null)} /></Modal>}
