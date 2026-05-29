@@ -617,6 +617,312 @@ function exportExcel(schulungen, ma) {
   XLSX.writeFile(wb,`PNRM_Schulungen_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
+// ─── Wissensdatenbank ─────────────────────────────────────────────────────────
+
+const dbW = {
+  getKategorien: () => supaFetch("/wissen_kategorien?order=sortierung.asc"),
+  getArtikel: () => supaFetch("/wissen_artikel?order=wichtig.desc,updated_at.desc"),
+  getDateien: (artikelId) => supaFetch(`/wissen_dateien?artikel_id=eq.${artikelId}`),
+  insertArtikel: (a) => supaFetch("/wissen_artikel", { method:"POST", body:JSON.stringify(a) }),
+  updateArtikel: (id, a) => supaFetch(`/wissen_artikel?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(a) }),
+  deleteArtikel: (id) => supaFetch(`/wissen_artikel?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
+  insertKategorie: (k) => supaFetch("/wissen_kategorien", { method:"POST", body:JSON.stringify(k) }),
+  uploadDatei: async (artikelId, file) => {
+    const ext = file.name.split('.').pop();
+    const path = `wissen/${artikelId}/${Date.now()}_${file.name}`;
+    const res = await fetch(`${SUPA_URL}/storage/v1/object/pnrm-wissen/${path}`, {
+      method:"POST",
+      headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": file.type },
+      body: file,
+    });
+    if (!res.ok) throw new Error("Upload fehlgeschlagen");
+    const url = `${SUPA_URL}/storage/v1/object/public/pnrm-wissen/${path}`;
+    await supaFetch("/wissen_dateien", { method:"POST", body:JSON.stringify({ artikel_id:artikelId, name:file.name, typ:ext, url, groesse:file.size }) });
+    return url;
+  },
+};
+
+function renderMarkdown(text) {
+  if (!text) return "";
+  return text
+    .replace(/^## (.+)$/gm, '<h3 style="color:#2459b8;margin:16px 0 8px">$1</h3>')
+    .replace(/^### (.+)$/gm, '<h4 style="margin:12px 0 6px">$1</h4>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^(\d+\. .+)$/gm, '<div style="margin:4px 0 4px 16px">$1</div>')
+    .replace(/^- (.+)$/gm, '<div style="margin:3px 0 3px 16px">• $1</div>')
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
+
+function ArtikelDetail({ artikel, dateien, onClose, onEdit }) {
+  return (
+    <div style={{ fontFamily:"Arial,Helvetica,sans-serif", color:"#172033" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+        <div>
+          {artikel.wichtig && <span style={{ background:"#fff1f0", color:"#842029", border:"1px solid #ffccc7", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700, marginRight:8 }}>⚠️ WICHTIG</span>}
+          <span style={{ background:"#eef5ff", color:"#2459b8", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>{artikel.unterkategorie||"Allgemein"}</span>
+        </div>
+        <button onClick={onEdit} style={{ background:"#eef5ff", color:"#2459b8", border:"1px solid #d7e0ec", borderRadius:10, padding:"7px 14px", fontWeight:700, fontSize:13, cursor:"pointer" }}>✏️ Bearbeiten</button>
+      </div>
+      <h2 style={{ margin:"0 0 16px", fontSize:22 }}>{artikel.titel}</h2>
+      <div style={{ background:"#fbfcff", border:"1px solid #d7e0ec", borderRadius:12, padding:"18px 20px", marginBottom:16, lineHeight:1.7, fontSize:15 }}
+        dangerouslySetInnerHTML={{ __html: renderMarkdown(artikel.inhalt) }} />
+      {artikel.schlagwoerter?.length > 0 && (
+        <div style={{ marginBottom:16 }}>
+          {artikel.schlagwoerter.map(s=><span key={s} style={{ background:"#f0f4ff", color:"#5f6d82", borderRadius:999, padding:"3px 10px", fontSize:12, marginRight:6 }}>#{s}</span>)}
+        </div>
+      )}
+      {dateien?.length > 0 && (
+        <div>
+          <h3 style={{ fontSize:16, margin:"0 0 10px" }}>📎 Dateien</h3>
+          {dateien.map(d=>(
+            <div key={d.id} style={{ border:"1px solid #d7e0ec", borderRadius:10, padding:"10px 14px", marginBottom:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span style={{ fontSize:14 }}>📄 {d.name}</span>
+              <button onClick={()=>window.open(d.url,"_blank")} style={{ background:"#eef5ff", color:"#2459b8", border:"1px solid #d7e0ec", borderRadius:8, padding:"5px 12px", fontWeight:700, fontSize:12, cursor:"pointer" }}>
+                {["pdf"].includes(d.typ?.toLowerCase()) ? "📖 Anzeigen" : ["jpg","jpeg","png","gif","webp"].includes(d.typ?.toLowerCase()) ? "🖼 Anzeigen" : "▶️ Öffnen"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={{ color:"#5f6d82", fontSize:12, marginTop:16 }}>Autor: {artikel.autor||"–"} · Zuletzt aktualisiert: {new Date(artikel.updated_at).toLocaleDateString("de-DE")}</p>
+    </div>
+  );
+}
+
+function ArtikelForm({ artikel, kategorien, onSave, onClose }) {
+  const isNew = !artikel;
+  const [form, setForm] = useState(artikel || { titel:"", inhalt:"", kategorie_id:"", unterkategorie:"", schlagwoerter:[], autor:"Alexander Pfeiffer", status:"Entwurf", wichtig:false });
+  const [tagInput, setTagInput] = useState("");
+  const [files, setFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef();
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const addTag = () => { if(tagInput.trim()) { set("schlagwoerter",[...(form.schlagwoerter||[]),tagInput.trim().toLowerCase()]); setTagInput(""); } };
+  const removeTag = (t) => set("schlagwoerter",(form.schlagwoerter||[]).filter(x=>x!==t));
+
+  const handleFiles = async (savedId) => {
+    setUploading(true);
+    for (const f of files) {
+      try { await dbW.uploadDatei(savedId, f); } catch(e) { console.error(e); }
+    }
+    setUploading(false);
+  };
+
+  const save = async () => {
+    if (!form.titel.trim()) { alert("Bitte Titel eingeben."); return; }
+    await onSave(form, handleFiles);
+  };
+
+  return (
+    <div style={{ fontFamily:"Arial,Helvetica,sans-serif", color:"#172033" }}>
+      <h2 style={{ margin:"0 0 18px", fontSize:20 }}>{isNew?"Neuer Artikel":"Artikel bearbeiten"}</h2>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:14 }}>
+        <div style={{ gridColumn:"span 2" }}>
+          <label style={{ display:"block", fontWeight:700, marginBottom:5, fontSize:14 }}>Titel</label>
+          <input value={form.titel} onChange={e=>set("titel",e.target.value)} style={{ width:"100%", fontSize:15, padding:11, border:"1px solid #cbd6e6", borderRadius:11, background:"#fff", color:"#172033", boxSizing:"border-box" }} placeholder="z.B. Vorgehen bei Sturzunfall" />
+        </div>
+        <div>
+          <label style={{ display:"block", fontWeight:700, marginBottom:5, fontSize:14 }}>Kategorie</label>
+          <select value={form.kategorie_id||""} onChange={e=>set("kategorie_id",Number(e.target.value))} style={{ width:"100%", fontSize:15, padding:11, border:"1px solid #cbd6e6", borderRadius:11, background:"#fff", color:"#172033", boxSizing:"border-box" }}>
+            <option value="">Bitte wählen</option>
+            {kategorien.map(k=><option key={k.id} value={k.id}>{k.icon} {k.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ display:"block", fontWeight:700, marginBottom:5, fontSize:14 }}>Unterkategorie</label>
+          <input value={form.unterkategorie||""} onChange={e=>set("unterkategorie",e.target.value)} style={{ width:"100%", fontSize:15, padding:11, border:"1px solid #cbd6e6", borderRadius:11, background:"#fff", boxSizing:"border-box" }} placeholder="z.B. Notfallprotokoll" />
+        </div>
+        <div>
+          <label style={{ display:"block", fontWeight:700, marginBottom:5, fontSize:14 }}>Autor</label>
+          <input value={form.autor||""} onChange={e=>set("autor",e.target.value)} style={{ width:"100%", fontSize:15, padding:11, border:"1px solid #cbd6e6", borderRadius:11, background:"#fff", boxSizing:"border-box" }} />
+        </div>
+        <div>
+          <label style={{ display:"block", fontWeight:700, marginBottom:5, fontSize:14 }}>Status</label>
+          <select value={form.status} onChange={e=>set("status",e.target.value)} style={{ width:"100%", fontSize:15, padding:11, border:"1px solid #cbd6e6", borderRadius:11, background:"#fff", boxSizing:"border-box" }}>
+            <option>Entwurf</option><option>Freigegeben</option><option>Archiviert</option>
+          </select>
+        </div>
+      </div>
+      <label style={{ display:"block", fontWeight:700, marginBottom:5, fontSize:14 }}>Inhalt (Markdown: ## Überschrift, **fett**, - Liste)</label>
+      <textarea value={form.inhalt||""} onChange={e=>set("inhalt",e.target.value)} rows={10} style={{ width:"100%", fontSize:14, padding:11, border:"1px solid #cbd6e6", borderRadius:11, background:"#fff", resize:"vertical", fontFamily:"monospace", boxSizing:"border-box" }} placeholder="## Abschnitt&#10;&#10;Inhalt hier eingeben...&#10;&#10;- Listenpunkt 1&#10;- Listenpunkt 2" />
+      <div style={{ marginTop:12 }}>
+        <label style={{ display:"block", fontWeight:700, marginBottom:5, fontSize:14 }}>Schlagwörter</label>
+        <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+          <input value={tagInput} onChange={e=>setTagInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()} style={{ flex:1, fontSize:14, padding:9, border:"1px solid #cbd6e6", borderRadius:10, background:"#fff" }} placeholder="Schlagwort eingeben + Enter" />
+          <button onClick={addTag} style={{ background:"#eef5ff", color:"#2459b8", border:"1px solid #d7e0ec", borderRadius:10, padding:"9px 14px", fontWeight:700, cursor:"pointer" }}>+</button>
+        </div>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+          {(form.schlagwoerter||[]).map(t=><span key={t} onClick={()=>removeTag(t)} style={{ background:"#f0f4ff", color:"#5f6d82", borderRadius:999, padding:"3px 10px", fontSize:12, cursor:"pointer" }}>#{t} ✕</span>)}
+        </div>
+      </div>
+      <label style={{ display:"flex", alignItems:"center", gap:10, marginTop:14, cursor:"pointer" }}>
+        <input type="checkbox" checked={form.wichtig} onChange={e=>set("wichtig",e.target.checked)} style={{ width:18,height:18,accentColor:"#c0392b" }} />
+        <strong style={{ color:"#c0392b" }}>Als wichtig markieren</strong> (erscheint ganz oben)
+      </label>
+      <div style={{ marginTop:14 }}>
+        <label style={{ display:"block", fontWeight:700, marginBottom:5, fontSize:14 }}>📎 Dateien anhängen (PDF, PPT, Bilder)</label>
+        <button onClick={()=>fileRef.current.click()} style={{ background:"#eef5ff", color:"#2459b8", border:"1px solid #d7e0ec", borderRadius:10, padding:"9px 14px", fontWeight:700, fontSize:13, cursor:"pointer" }}>Dateien auswählen</button>
+        <input ref={fileRef} type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png" onChange={e=>setFiles([...e.target.files])} style={{ display:"none" }} />
+        {files.length>0 && <div style={{ marginTop:8 }}>{[...files].map((f,i)=><div key={i} style={{ fontSize:13, color:"#5f6d82" }}>📄 {f.name}</div>)}</div>}
+      </div>
+      <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:20 }}>
+        <button onClick={onClose} style={{ background:"#eef5ff", color:"#1f365f", border:"1px solid #d7e0ec", borderRadius:12, padding:"11px 16px", fontWeight:700, fontSize:14, cursor:"pointer" }}>Abbrechen</button>
+        <button onClick={save} disabled={uploading} style={{ background:"#2459b8", color:"#fff", border:0, borderRadius:12, padding:"11px 16px", fontWeight:700, fontSize:15, cursor:"pointer", opacity:uploading?.65:1 }}>{uploading?"Wird gespeichert…":"Speichern"}</button>
+      </div>
+    </div>
+  );
+}
+
+function WissenTab({ showToast }) {
+  const [kategorien, setKategorien] = useState([]);
+  const [artikel, setArtikel] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [activeKat, setActiveKat] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [activeArtikel, setActiveArtikel] = useState(null);
+  const [dateien, setDateien] = useState([]);
+
+  useEffect(()=>{
+    Promise.all([dbW.getKategorien(), dbW.getArtikel()]).then(([k,a])=>{
+      setKategorien(k||[]); setArtikel(a||[]); setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[]);
+
+  const openArtikel = async (a) => {
+    setActiveArtikel(a);
+    const d = await dbW.getDateien(a.id).catch(()=>[]);
+    setDateien(d||[]);
+    setModal("detail");
+  };
+
+  const saveArtikel = async (data, uploadFn) => {
+    try {
+      if (activeArtikel && modal==="edit") {
+        await dbW.updateArtikel(activeArtikel.id, data);
+        setArtikel(a=>a.map(x=>x.id===activeArtikel.id?{...x,...data}:x));
+        if (uploadFn) await uploadFn(activeArtikel.id);
+        showToast("Artikel gespeichert.");
+      } else {
+        const res = await dbW.insertArtikel(data);
+        const newA = res[0];
+        if (uploadFn) await uploadFn(newA.id);
+        setArtikel(a=>[newA,...a]);
+        showToast("Artikel angelegt.");
+      }
+      setModal(null); setActiveArtikel(null);
+    } catch(e) { showToast("Fehler: " + e.message, "warn"); }
+  };
+
+  const deleteArtikel = async (id) => {
+    if (!window.confirm("Artikel wirklich löschen?")) return;
+    await dbW.deleteArtikel(id);
+    setArtikel(a=>a.filter(x=>x.id!==id));
+    showToast("Artikel gelöscht.");
+    setModal(null);
+  };
+
+  const filtered = artikel.filter(a=>{
+    const katMatch = !activeKat || a.kategorie_id===activeKat;
+    if (!search) return katMatch;
+    const q = search.toLowerCase();
+    return katMatch && (
+      a.titel?.toLowerCase().includes(q) ||
+      a.inhalt?.toLowerCase().includes(q) ||
+      a.unterkategorie?.toLowerCase().includes(q) ||
+      (a.schlagwoerter||[]).some(s=>s.includes(q))
+    );
+  });
+
+  const wichtig = filtered.filter(a=>a.wichtig);
+  const normal = filtered.filter(a=>!a.wichtig);
+
+  if (loading) return <div style={{ textAlign:"center", padding:60, color:"#5f6d82" }}>⏳ Lade Wissensdatenbank...</div>;
+
+  return (
+    <div style={{ fontFamily:"Arial,Helvetica,sans-serif" }}>
+      {/* Suche */}
+      <div style={{ position:"relative", marginBottom:20 }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)}
+          placeholder="🔍 Suchen... z.B. Unfall, Notfall, Fahrzeug, Passwort"
+          style={{ width:"100%", fontSize:16, padding:"13px 16px", border:"2px solid #2459b8", borderRadius:14, background:"#fff", color:"#172033", boxSizing:"border-box", boxShadow:"0 4px 16px rgba(36,89,184,.1)" }} />
+        {search && <button onClick={()=>setSearch("")} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", fontSize:18, color:"#5f6d82", cursor:"pointer" }}>✕</button>}
+      </div>
+
+      {/* Kategorien */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:20 }}>
+        <button onClick={()=>setActiveKat(null)} style={{ background:!activeKat?"#2459b8":"#eef5ff", color:!activeKat?"#fff":"#2459b8", border:"1px solid #bed0ed", borderRadius:999, padding:"7px 16px", fontWeight:700, fontSize:13, cursor:"pointer" }}>Alle</button>
+        {kategorien.map(k=>(
+          <button key={k.id} onClick={()=>setActiveKat(activeKat===k.id?null:k.id)} style={{ background:activeKat===k.id?k.farbe||"#2459b8":"#eef5ff", color:activeKat===k.id?"#fff":"#2459b8", border:"1px solid #bed0ed", borderRadius:999, padding:"7px 16px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+            {k.icon} {k.name}
+          </button>
+        ))}
+        <button onClick={()=>{ setActiveArtikel(null); setModal("neu"); }} style={{ background:"#2459b8", color:"#fff", border:0, borderRadius:999, padding:"7px 16px", fontWeight:700, fontSize:13, cursor:"pointer", marginLeft:"auto" }}>+ Neuer Artikel</button>
+      </div>
+
+      {/* Suchergebnis-Info */}
+      {search && <p style={{ color:"#5f6d82", fontSize:14, marginBottom:12 }}>{filtered.length} Ergebnis{filtered.length!==1?"se":""} für "{search}"</p>}
+
+      {/* Wichtige Artikel */}
+      {wichtig.length>0 && (
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"#842029", letterSpacing:1, textTransform:"uppercase", marginBottom:8 }}>⚠️ Wichtig</div>
+          {wichtig.map(a=><ArtikelKarte key={a.id} a={a} kategorien={kategorien} onClick={()=>openArtikel(a)} />)}
+        </div>
+      )}
+
+      {/* Normale Artikel */}
+      {normal.length>0 && (
+        <div>
+          {wichtig.length>0 && <div style={{ fontSize:12, fontWeight:700, color:"#5f6d82", letterSpacing:1, textTransform:"uppercase", marginBottom:8 }}>Alle Artikel</div>}
+          {normal.map(a=><ArtikelKarte key={a.id} a={a} kategorien={kategorien} onClick={()=>openArtikel(a)} />)}
+        </div>
+      )}
+
+      {filtered.length===0 && (
+        <div style={{ textAlign:"center", padding:60, color:"#5f6d82" }}>
+          {search ? `Keine Ergebnisse für "${search}" — anderen Suchbegriff versuchen.` : "Noch keine Artikel — ersten Artikel anlegen."}
+        </div>
+      )}
+
+      {/* Modals */}
+      {modal==="detail" && activeArtikel && (
+        <Modal onClose={()=>setModal(null)} wide>
+          <ArtikelDetail artikel={activeArtikel} dateien={dateien} onClose={()=>setModal(null)} onEdit={()=>setModal("edit")} />
+          <div style={{ borderTop:"1px solid #d7e0ec", marginTop:16, paddingTop:14, display:"flex", justifyContent:"flex-end" }}>
+            <button onClick={()=>deleteArtikel(activeArtikel.id)} style={{ background:"#fff1f0", color:"#842029", border:"1px solid #ffccc7", borderRadius:10, padding:"8px 14px", fontWeight:700, fontSize:13, cursor:"pointer" }}>🗑 Löschen</button>
+          </div>
+        </Modal>
+      )}
+      {(modal==="neu"||modal==="edit") && (
+        <Modal onClose={()=>setModal(null)} wide>
+          <ArtikelForm artikel={modal==="edit"?activeArtikel:null} kategorien={kategorien} onSave={saveArtikel} onClose={()=>setModal(null)} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function ArtikelKarte({ a, kategorien, onClick }) {
+  const kat = kategorien.find(k=>k.id===a.kategorie_id);
+  return (
+    <div onClick={onClick} style={{ background:"#fff", border:"1px solid #d7e0ec", borderRadius:14, padding:"14px 18px", marginBottom:10, cursor:"pointer", boxShadow:"0 4px 14px rgba(16,24,40,.05)", transition:"box-shadow .15s" }}
+      onMouseEnter={e=>e.currentTarget.style.boxShadow="0 6px 20px rgba(36,89,184,.12)"}
+      onMouseLeave={e=>e.currentTarget.style.boxShadow="0 4px 14px rgba(16,24,40,.05)"}>
+      <div style={{ display:"flex", gap:8, marginBottom:6, flexWrap:"wrap", alignItems:"center" }}>
+        {kat && <span style={{ background:kat.farbe+"22", color:kat.farbe, borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>{kat.icon} {kat.name}</span>}
+        {a.unterkategorie && <span style={{ background:"#f0f4ff", color:"#5f6d82", borderRadius:999, padding:"3px 10px", fontSize:11 }}>{a.unterkategorie}</span>}
+        {a.status==="Freigegeben" && <span style={{ background:"#eefaf2", color:"#0f5331", borderRadius:999, padding:"3px 10px", fontSize:11, fontWeight:700 }}>Freigegeben</span>}
+      </div>
+      <h3 style={{ margin:"0 0 4px", fontSize:16 }}>{a.titel}</h3>
+      {a.schlagwoerter?.length>0 && <div style={{ marginTop:6 }}>{a.schlagwoerter.slice(0,4).map(s=><span key={s} style={{ color:"#5f6d82", fontSize:12, marginRight:8 }}>#{s}</span>)}</div>}
+    </div>
+  );
+}
+
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [schulungen, setSchulungen] = useState([]);
@@ -747,7 +1053,7 @@ export default function App() {
         </div>
 
         <div style={{ display:"flex", borderBottom:`2px solid ${C.border}`, marginBottom:18 }}>
-          {[["schulungen","Schulungen"],["mitarbeiter","Mitarbeiter"]].map(([id,label])=>(
+          {[["schulungen","Schulungen"],["wissen","Wissen"],["mitarbeiter","Mitarbeiter"]].map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} style={{ background:"none", border:"none", borderBottom:tab===id?`3px solid ${C.blue}`:"3px solid transparent", color:tab===id?C.blue:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:400, marginBottom:-2 }}>{label}</button>
           ))}
         </div>
@@ -786,9 +1092,9 @@ export default function App() {
               );
             })}
           </>
-        ) : (
-          <MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} />
-        )}
+        ) : null}
+        {tab==="mitarbeiter" && <MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} />}
+        {tab==="wissen" && <WissenTab showToast={showToast} />}
       </div>
 
       {(modal==="neu"||modal==="edit")&&<Modal onClose={()=>setModal(null)} wide><SchulungForm schulung={modal==="edit"?active:null} onSave={saveSchul} onClose={()=>setModal(null)} /></Modal>}
