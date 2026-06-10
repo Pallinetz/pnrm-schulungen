@@ -1,5 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { VideoUploader } from "./components/VideoUploader";
+import { VideoPlayer } from "./components/VideoPlayer";
+import { getSignedVideoUrl } from "./lib/videoStorage";
 
 // ─── Farben & Design — exakt wie Original (Arial, #f3f6fb, #2459b8) ──────────
 const C = {
@@ -115,6 +118,13 @@ const SEED_SCHULUNGEN = [
 ];
 
 const KATEGORIEN = ["Pflege","Medizin","Recht & Compliance","QM","Kommunikation","Notfallmanagement"];
+
+const SEED_WISSEN = [
+  { id:"w1", titel:"Palliative Sedierung – Grundlagen", kategorie:"Medizin",
+    inhalt:"Die palliative Sedierung ist eine medizinische Maßnahme zur Linderung unerträglichen Leidens bei Sterbenden. Sie erfordert eine sorgfältige Indikationsstellung, Aufklärung der Angehörigen und eine ärztliche Anordnung. Unterschieden wird zwischen intermittierender und kontinuierlicher Sedierung. PNRM folgt dem EAPC-Rahmen und der S3-Leitlinie Palliativmedizin.", dateien:[] },
+  { id:"w2", titel:"Schmerzskalen im Überblick", kategorie:"Pflege",
+    inhalt:"NRS (0–10): geeignet für orientierte, kommunikationsfähige Patienten. VRS (keine / leicht / mäßig / stark): bei eingeschränkter Kommunikation. BESD: für Patienten mit Demenz oder Bewusstseinsminderung – beobachtet Atmung, Mimik, Körperhaltung, Lautäußerungen und Reaktion auf Trost. Jede Erfassung ist zu dokumentieren.", dateien:[] },
+];
 const ROLLEN = ["Arzt","Ärztin","Pflegefachkraft","Koordination","Verwaltung","Leitung"];
 
 // ─── Styles (exakt am Original orientiert) ────────────────────────────────────
@@ -167,6 +177,34 @@ function Modal({ onClose, children, wide }) {
 
 function AIBtn({ onClick, loading, label }) {
   return <button onClick={onClick} disabled={loading} style={{ ...css.btnSec, fontSize:13, padding:"7px 14px", opacity:loading?.65:1, display:"flex", alignItems:"center", gap:6 }}><span>{loading?"⏳":"✦"}</span>{loading?"KI generiert…":label}</button>;
+}
+
+// ─── Wissen-Video-Block (lädt signed URL on mount) ────────────────────────────
+function WissenVideoBlock({ datei }) {
+  const [signedUrl, setSignedUrl] = useState(null);
+  useEffect(() => {
+    getSignedVideoUrl(datei.url).then(setSignedUrl).catch(console.error);
+  }, [datei.url]);
+  return <VideoPlayer url={signedUrl} titel={datei.name} />;
+}
+
+// ─── Video-Modul (lädt signed URL on mount) ───────────────────────────────────
+function VideoModul({ modul }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    if (modul.video_path) {
+      getSignedVideoUrl(modul.video_path).then(setUrl).catch(console.error);
+    }
+  }, [modul.video_path]);
+  return (
+    <div>
+      <h3 style={{ margin:"0 0 8px", fontSize:18 }}>{modul.titel}</h3>
+      {url
+        ? <VideoPlayer url={url} />
+        : <p style={{ margin:0, color:C.muted, fontSize:13 }}>Video wird geladen…</p>
+      }
+    </div>
+  );
 }
 
 // ─── Schulungs-Player — SOP-konform wie Original ──────────────────────────────
@@ -284,8 +322,10 @@ function SchulungsPlayer({ sc, onClose, onNachweis }) {
             <h2>Schulung</h2>
             {(sc.module||[]).map((m,i)=>(
               <div key={i} style={css.module}>
-                <h3 style={{ margin:"0 0 8px", fontSize:18 }}>{m.titel}</h3>
-                <p style={{ margin:0, whiteSpace:"pre-wrap" }}>{m.inhalt}</p>
+                {m.typ === "video"
+                  ? <VideoModul modul={m} />
+                  : <><h3 style={{ margin:"0 0 8px", fontSize:18 }}>{m.titel}</h3><p style={{ margin:0, whiteSpace:"pre-wrap" }}>{m.inhalt}</p></>
+                }
               </div>
             ))}
           </div>
@@ -416,7 +456,7 @@ function SchulungsPlayer({ sc, onClose, onNachweis }) {
 }
 
 // ─── Schulung anlegen / bearbeiten ────────────────────────────────────────────
-function SchulungForm({ schulung, onSave, onClose }) {
+function SchulungForm({ schulung, onSave, onClose, isAdmin }) {
   const isNew = !schulung;
   const [form, setForm] = useState(schulung || {
     titel:"", orgName:"Palliativ Netzwerk Rhein-Maas GmbH & Co. KG",
@@ -540,15 +580,37 @@ Format:
       <div style={css.section}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
           <h3 style={{ margin:0, fontSize:17 }}>📖 Lernmodule</h3>
-          <button onClick={()=>set("module",[...form.module,{titel:"",inhalt:""}])} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>+ Modul</button>
+          <button onClick={()=>set("module",[...form.module,{titel:"",inhalt:"",typ:"text",video_path:null,video_name:null}])} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>+ Modul</button>
         </div>
         {form.module.map((m,i)=>(
           <div key={i} style={{ borderLeft:`4px solid ${C.blue}`, paddingLeft:14, marginBottom:14 }}>
             <div style={{ display:"flex", gap:8, marginBottom:6 }}>
               <input value={m.titel} onChange={e=>setMod(i,"titel",e.target.value)} style={{ ...css.inp, fontWeight:700, marginBottom:0, flex:1 }} placeholder={`Modul ${i+1} Titel`} />
+              {isAdmin && (
+                <select value={m.typ||"text"} onChange={e=>setMod(i,"typ",e.target.value)} style={{ ...css.inp, width:"auto", marginBottom:0, paddingLeft:10, paddingRight:10 }}>
+                  <option value="text">Text</option>
+                  <option value="video">Video</option>
+                </select>
+              )}
               <button onClick={()=>set("module",form.module.filter((_,j)=>j!==i))} style={css.btnDanger}>✕</button>
             </div>
-            <textarea value={m.inhalt} onChange={e=>setMod(i,"inhalt",e.target.value)} style={{ ...css.inp, minHeight:70, resize:"vertical" }} />
+            {(m.typ||"text")==="video" ? (
+              <div style={{ marginTop:4 }}>
+                {m.video_path ? (
+                  <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:C.good.bg, border:`1px solid ${C.good.border}`, borderRadius:10 }}>
+                    <span style={{ color:C.good.text, fontSize:13 }}>✓ {m.video_name}</span>
+                    <button style={{ ...css.btnDanger, padding:"4px 10px", fontSize:12, marginLeft:"auto" }} onClick={()=>setForm(f=>{ const mod=[...f.module]; mod[i]={...mod[i],video_path:null,video_name:null}; return {...f,module:mod}; })}>Entfernen</button>
+                  </div>
+                ) : (
+                  <VideoUploader
+                    label="MP4 / Video hochladen"
+                    onUploaded={({path,name})=>setForm(f=>{ const mod=[...f.module]; mod[i]={...mod[i],video_path:path,video_name:name}; return {...f,module:mod}; })}
+                  />
+                )}
+              </div>
+            ) : (
+              <textarea value={m.inhalt} onChange={e=>setMod(i,"inhalt",e.target.value)} style={{ ...css.inp, minHeight:70, resize:"vertical" }} />
+            )}
           </div>
         ))}
         {!form.module.length && <p style={{ color:C.muted }}>Noch keine Module — KI verwenden oder manuell hinzufügen.</p>}
@@ -738,6 +800,134 @@ function NachweisModal({ sc, ma, onClose }) {
   );
 }
 
+// ─── Wissen ───────────────────────────────────────────────────────────────────
+function WissenView({ isAdmin, showToast }) {
+  const [artikel, setArtikel] = useState(SEED_WISSEN);
+  const [selected, setSelected] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ titel:"", kategorie:"Pflege", inhalt:"" });
+  const setF = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const art = selected ? artikel.find(a=>a.id===selected) : null;
+
+  const saveArtikel = () => {
+    if (!form.titel.trim()) return;
+    if (editing==="neu") {
+      setArtikel(a=>[...a,{ ...form, id:`w${Date.now()}`, dateien:[] }]);
+      showToast("Artikel erstellt.");
+    } else {
+      setArtikel(a=>a.map(x=>x.id===editing?{...x,...form}:x));
+      showToast("Gespeichert.");
+    }
+    setEditing(null);
+  };
+
+  const addVideo = (artikelId, { path, name }) => {
+    setArtikel(a=>a.map(x=>x.id===artikelId
+      ? { ...x, dateien:[...x.dateien,{ id:`d${Date.now()}`, name, typ:"video", url:path }] }
+      : x
+    ));
+    showToast("Video angehängt.");
+  };
+
+  const removeVideo = (artikelId, dateiId) => {
+    setArtikel(a=>a.map(x=>x.id===artikelId
+      ? { ...x, dateien:x.dateien.filter(d=>d.id!==dateiId) }
+      : x
+    ));
+  };
+
+  return (
+    <div style={{ fontFamily:"Arial,Helvetica,sans-serif" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {selected && <button onClick={()=>setSelected(null)} style={{ ...css.btnSec, fontSize:12, padding:"5px 12px" }}>← Zurück</button>}
+          <h2 style={{ margin:0, fontSize:20 }}>📚 Wissensdatenbank</h2>
+        </div>
+        {isAdmin && !selected && !editing && (
+          <button onClick={()=>{ setForm({titel:"",kategorie:"Pflege",inhalt:""}); setEditing("neu"); }} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Neuer Artikel</button>
+        )}
+        {isAdmin && selected && !editing && (
+          <button onClick={()=>{ setForm({titel:art.titel,kategorie:art.kategorie,inhalt:art.inhalt}); setEditing(selected); }} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>✏️ Bearbeiten</button>
+        )}
+      </div>
+
+      {/* Formular */}
+      {editing && (
+        <div style={css.section}>
+          <h3 style={{ margin:"0 0 14px", fontSize:16 }}>{editing==="neu"?"Neuer Artikel":"Artikel bearbeiten"}</h3>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:12, marginBottom:12 }}>
+            <div>
+              <label style={css.lbl}>Titel</label>
+              <input value={form.titel} onChange={e=>setF("titel",e.target.value)} style={css.inp} />
+            </div>
+            <div>
+              <label style={css.lbl}>Kategorie</label>
+              <select value={form.kategorie} onChange={e=>setF("kategorie",e.target.value)} style={css.inp}>
+                {KATEGORIEN.map(k=><option key={k}>{k}</option>)}
+              </select>
+            </div>
+          </div>
+          <label style={css.lbl}>Inhalt</label>
+          <textarea value={form.inhalt} onChange={e=>setF("inhalt",e.target.value)} style={{ ...css.inp, minHeight:100, resize:"vertical", marginBottom:12 }} />
+          <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+            <button onClick={()=>setEditing(null)} style={css.btnSec}>Abbrechen</button>
+            <button onClick={saveArtikel} style={css.btn}>Speichern</button>
+          </div>
+        </div>
+      )}
+
+      {/* Detailansicht */}
+      {selected && art && !editing && (
+        <div style={css.section}>
+          <span style={{ ...css.badge, marginBottom:10, display:"inline-block" }}>{art.kategorie}</span>
+          <h2 style={{ margin:"0 0 14px", fontSize:20 }}>{art.titel}</h2>
+          <p style={{ margin:"0 0 20px", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{art.inhalt}</p>
+          {art.dateien.filter(d=>d.typ==="video").map(d=>(
+            <div key={d.id} style={{ position:"relative", marginBottom:8 }}>
+              <WissenVideoBlock datei={d} />
+              {isAdmin && (
+                <button onClick={()=>removeVideo(art.id,d.id)} style={{ ...css.btnDanger, position:"absolute", top:0, right:0, padding:"3px 9px", fontSize:12 }}>✕</button>
+              )}
+            </div>
+          ))}
+          {isAdmin && (
+            <div style={{ marginTop:16, borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
+              <p style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:C.muted }}>Video anhängen</p>
+              <VideoUploader label="Video hochladen (MP4)" onUploaded={({path,name})=>addVideo(art.id,{path,name})} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Artikelliste */}
+      {!selected && !editing && (
+        <div>
+          {artikel.length===0 && <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Noch keine Artikel.</p>}
+          {artikel.map(a=>{
+            const videos=a.dateien.filter(d=>d.typ==="video").length;
+            return (
+              <div key={a.id} style={{ ...css.section, cursor:"pointer" }} onClick={()=>setSelected(a.id)}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
+                  <div style={{ flex:1 }}>
+                    <span style={{ ...css.badge, marginBottom:6, display:"inline-block" }}>{a.kategorie}</span>
+                    <h3 style={{ margin:"0 0 4px", fontSize:16 }}>{a.titel}</h3>
+                    <p style={{ margin:0, fontSize:12, color:C.muted }}>{a.inhalt.slice(0,120)}{a.inhalt.length>120?"…":""}</p>
+                    {videos>0 && <span style={{ fontSize:12, color:C.blue, marginTop:4, display:"inline-block" }}>▶ {videos} Video{videos!==1?"s":""}</span>}
+                  </div>
+                  {isAdmin && (
+                    <button onClick={e=>{e.stopPropagation();setArtikel(x=>x.filter(y=>y.id!==a.id));showToast("Gelöscht.");}} style={{ ...css.btnDanger, padding:"5px 11px" }}>✕</button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 function exportExcel(schulungen, ma) {
   const wb=XLSX.utils.book_new();
@@ -758,6 +948,7 @@ export default function App() {
   const [filter, setFilter] = useState("alle");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),5000);};
   const saveSchul=data=>{ if(active&&modal==="edit"){setSchulungen(s=>s.map(x=>x.id===active.id?{...active,...data}:x));showToast("Gespeichert.");}else{const n={...data,id:Date.now(),empfaenger:[],nachweise:{}};setSchulungen(s=>[...s,n]);showToast("Schulung angelegt.");} setModal(null);setActive(null); };
   const sendSchul=(id,empf)=>{setSchulungen(s=>s.map(x=>x.id===id?{...x,empfaenger:empf}:x));setModal(null);setActive(null);const hasC=empf.some(eid=>ma.find(m=>m.id===eid)?.team==="Caritas");showToast(`✓ An ${empf.length} Personen versendet.`);if(hasC)setTimeout(()=>showToast("⚠️ Caritas-Partnerteam einbezogen — bitte offizielle Weitergabe sicherstellen.","warn"),5500);};
@@ -774,9 +965,12 @@ export default function App() {
             <h1 style={{ margin:"2px 0 0", fontSize:22, fontWeight:700 }}>Schulungsverwaltung</h1>
             <p style={{ margin:0, color:C.muted, fontSize:13 }}>SAPV · Kreis Kleve & Moers · DIN EN 15224</p>
           </div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+            <button type="button" onClick={e=>{ e.stopPropagation(); setIsAdmin(a=>!a); }} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px", background:isAdmin?C.blueDim:"#f9fafb", border:`1px solid ${isAdmin?C.blue:C.border}` }}>
+              {isAdmin?"🔐 Admin":"👤 Nutzer"}
+            </button>
             <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>📊 Excel-Export</button>
-            {tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={css.btn}>+ Neue Schulung</button>}
+            {isAdmin&&tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={css.btn}>+ Neue Schulung</button>}
           </div>
         </div>
       </header>
@@ -794,7 +988,7 @@ export default function App() {
 
         {/* Tabs */}
         <div style={{ display:"flex", borderBottom:`2px solid ${C.border}`, marginBottom:18 }}>
-          {[["schulungen","📋 Schulungen"],["mitarbeiter","👥 Mitarbeiter"]].map(([id,label])=>(
+          {[["schulungen","📋 Schulungen"],["wissen","📚 Wissen"],["mitarbeiter","👥 Mitarbeiter"]].map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} style={{ background:"none", border:"none", borderBottom:tab===id?`3px solid ${C.blue}`:"3px solid transparent", color:tab===id?C.blue:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:400, marginBottom:-2 }}>{label}</button>
           ))}
         </div>
@@ -830,10 +1024,11 @@ export default function App() {
             </div>;
           })}
         </>}
+        {tab==="wissen"&&<WissenView isAdmin={isAdmin} showToast={showToast} />}
         {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} />}
       </div>
 
-      {(modal==="neu"||modal==="edit")&&<Modal onClose={()=>setModal(null)} wide><SchulungForm schulung={modal==="edit"?active:null} onSave={saveSchul} onClose={()=>setModal(null)} /></Modal>}
+      {(modal==="neu"||modal==="edit")&&<Modal onClose={()=>setModal(null)} wide><SchulungForm schulung={modal==="edit"?active:null} onSave={saveSchul} onClose={()=>setModal(null)} isAdmin={isAdmin} /></Modal>}
       {modal==="player"&&active&&<Modal onClose={()=>setModal(null)} wide><SchulungsPlayer sc={active} onClose={()=>setModal(null)} onNachweis={(id,nw)=>saveNachweis(id,nw)} /></Modal>}
       {modal==="send"&&active&&<Modal onClose={()=>setModal(null)}><SendModal sc={active} ma={ma} onClose={()=>setModal(null)} onSend={sendSchul} /></Modal>}
       {modal==="nw"&&active&&<Modal onClose={()=>setModal(null)} wide><NachweisModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
