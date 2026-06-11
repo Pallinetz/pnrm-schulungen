@@ -862,8 +862,8 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState(null);
   const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loginModal, setLoginModal] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState(null);
@@ -873,7 +873,6 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) checkAdmin(session.user.email);
-      setAuthLoading(false);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
@@ -884,13 +883,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
     setSchulungenLoading(true);
-    supabase.from("schulungen").select("*").order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (!error && data) setSchulungen(data);
-        setSchulungenLoading(false);
-      });
+    let q = supabase.from("schulungen").select("*").order("created_at", { ascending: false });
+    if (!user) q = q.eq("status", "Freigegeben");
+    q.then(({ data, error }) => {
+      if (!error && data) setSchulungen(data);
+      setSchulungenLoading(false);
+    });
   }, [user]);
 
   async function checkAdmin(email) {
@@ -913,31 +912,6 @@ export default function App() {
   const saveNachweis=(schulungId,nw)=>{const maMatch=ma.find(m=>m.name.toLowerCase()===nw.name.toLowerCase());const key=maMatch?.id||nw.name;setSchulungen(s=>s.map(x=>x.id===schulungId?{...x,nachweise:{...(x.nachweise||{}),[key]:nw}}:x));showToast(`✓ Nachweis gespeichert. Code: ${nw.code}`);};
   const filtered=schulungen.filter(s=>{const mF=filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&s.empfaenger?.length>0);const mS=!search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());return mF&&mS;});
 
-  if (authLoading) return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, fontFamily:"Arial,Helvetica,sans-serif" }}>
-      <p style={{ color:C.muted, fontSize:15 }}>Laden…</p>
-    </div>
-  );
-
-  if (!user) return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Arial,Helvetica,sans-serif" }}>
-      <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:36, width:"100%", maxWidth:400, boxShadow:"0 8px 32px rgba(16,24,40,.08)" }}>
-        <div style={{ marginBottom:24 }}>
-          <div style={{ fontSize:10, color:C.blue, fontWeight:700, letterSpacing:2, textTransform:"uppercase", marginBottom:6 }}>Palliativ Netzwerk Rhein-Maas GmbH & Co. KG</div>
-          <h2 style={{ margin:"0 0 4px", fontSize:22, fontWeight:700, color:C.text }}>Schulungsverwaltung</h2>
-          <p style={{ margin:0, fontSize:13, color:C.muted }}>Bitte melden Sie sich an.</p>
-        </div>
-        <form onSubmit={handleLogin} style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"10px 14px" }} />
-          <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"10px 14px" }} />
-          {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
-          <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"11px", fontSize:15, opacity:loginLoading?.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
-        </form>
-      </div>
-      <style>{`*{box-sizing:border-box}`}</style>
-    </div>
-  );
-
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
       {/* Header */}
@@ -949,10 +923,13 @@ export default function App() {
             <p style={{ margin:0, color:C.muted, fontSize:13 }}>SAPV · Kreis Kleve & Moers · DIN EN 15224</p>
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-            <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{isAdmin?"🔐 Admin":"👤"} {user?.email}</span>
-            <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>📊 Excel-Export</button>
+            {user && <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{isAdmin?"🔐 Admin":"👤"} {user.email}</span>}
+            {user && <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>📊 Excel-Export</button>}
             {isAdmin&&tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={css.btn}>+ Neue Schulung</button>}
-            <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px" }}>Abmelden</button>
+            {user
+              ? <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px" }}>Abmelden</button>
+              : <button type="button" onClick={()=>setLoginModal(true)} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px" }}>Anmelden</button>
+            }
           </div>
         </div>
       </header>
@@ -970,7 +947,7 @@ export default function App() {
 
         {/* Tabs */}
         <div style={{ display:"flex", borderBottom:`2px solid ${C.border}`, marginBottom:18 }}>
-          {[["schulungen","📋 Schulungen"],["wissen","📚 Wissen"],["mitarbeiter","👥 Mitarbeiter"]].map(([id,label])=>(
+          {[["schulungen","📋 Schulungen"],["wissen","📚 Wissen"],...(user?[["mitarbeiter","👥 Mitarbeiter"]]:[])]  .map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} style={{ background:"none", border:"none", borderBottom:tab===id?`3px solid ${C.blue}`:"3px solid transparent", color:tab===id?C.blue:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:400, marginBottom:-2 }}>{label}</button>
           ))}
         </div>
@@ -999,9 +976,9 @@ export default function App() {
                   <p style={{ margin:0, fontSize:12, color:C.muted }}>{sc.dokNr} · Version {sc.version} · Gültig ab {sc.gueltigAb}</p>
                 </div>
                 <div style={{ display:"flex", gap:8 }} onClick={e=>e.stopPropagation()}>
-                  <button onClick={()=>{setActive(sc);setModal("edit");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>✏️</button>
-                  {sent>0&&<button onClick={()=>{setActive(sc);setModal("nw");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>📄</button>}
-                  {sc.status==="Freigegeben"&&<button onClick={()=>{setActive(sc);setModal("send");}} style={{ ...css.btn, padding:"7px 13px", fontSize:13 }}>📤 Senden</button>}
+                  {isAdmin&&<button onClick={()=>{setActive(sc);setModal("edit");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>✏️</button>}
+                  {isAdmin&&sent>0&&<button onClick={()=>{setActive(sc);setModal("nw");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>📄</button>}
+                  {isAdmin&&sc.status==="Freigegeben"&&<button onClick={()=>{setActive(sc);setModal("send");}} style={{ ...css.btn, padding:"7px 13px", fontSize:13 }}>📤 Senden</button>}
                 </div>
               </div>
             </div>;
@@ -1015,6 +992,16 @@ export default function App() {
       {modal==="player"&&active&&<Modal onClose={()=>setModal(null)} wide><SchulungsPlayer sc={active} onClose={()=>setModal(null)} onNachweis={(id,nw)=>saveNachweis(id,nw)} /></Modal>}
       {modal==="send"&&active&&<Modal onClose={()=>setModal(null)}><SendModal sc={active} ma={ma} onClose={()=>setModal(null)} onSend={sendSchul} /></Modal>}
       {modal==="nw"&&active&&<Modal onClose={()=>setModal(null)} wide><NachweisModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
+
+      {loginModal&&<Modal onClose={()=>{setLoginModal(false);setLoginError(null);}}>
+        <h2 style={{ margin:"0 0 20px", fontSize:20 }}>Anmelden</h2>
+        <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);}else{setLoginModal(false);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"10px 14px" }} />
+          <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"10px 14px" }} />
+          {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
+          <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"11px", fontSize:15, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
+        </form>
+      </Modal>}
 
       {toast&&<div style={{ position:"fixed",bottom:22,right:22,background:toast.type==="warn"?C.warn.bg:C.good.bg,border:`1px solid ${toast.type==="warn"?C.warn.border:C.good.border}`,color:toast.type==="warn"?C.warn.text:C.good.text,padding:"12px 20px",borderRadius:12,fontSize:14,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.12)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}>{toast.msg}</div>}
       <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} *{box-sizing:border-box} select option{background:#fff;color:#172033} button:hover{filter:brightness(.95)}`}</style>
