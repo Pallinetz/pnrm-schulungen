@@ -712,7 +712,8 @@ function WissenView({ isAdmin, showToast }) {
   useEffect(() => {
     supabase.from("wissen_artikel").select("*, wissen_dateien(*)").order("created_at")
       .then(({ data, error }) => {
-        if (!error && data) setArtikel(data);
+        if (error) { console.error("Wissen-Fehler:", error); }
+        if (data) setArtikel(data.map(a => ({ ...a, dateien: a.wissen_dateien ?? [] })));
         setWissenLoading(false);
       });
   }, []);
@@ -893,7 +894,8 @@ export default function App() {
   }, [user]);
 
   async function checkAdmin(email) {
-    const { data } = await supabase.from("mitarbeiter").select("rolle").eq("email", email).single();
+    const { data, error } = await supabase.from("mitarbeiter").select("rolle").eq("email", email).single();
+    console.log("checkAdmin:", email, "→ data:", data, "error:", error);
     setIsAdmin(data?.rolle === "admin");
   }
 
