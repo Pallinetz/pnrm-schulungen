@@ -702,20 +702,31 @@ function NachweisModal({ sc, ma, onClose }) {
 }
 
 // ─── Wissen ───────────────────────────────────────────────────────────────────
+const stripMd = txt => (txt||"").replace(/#{1,6} /g,"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/_/g,"");
+
 function WissenView({ isAdmin, showToast }) {
   const [artikel, setArtikel] = useState([]);
+  const [kategorieMap, setKategorieMap] = useState({});
   const [wissenLoading, setWissenLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ titel:"", kategorie:"Pflege", inhalt:"" });
+  const [form, setForm] = useState({ titel:"", kategorie_id:"", inhalt:"" });
 
   useEffect(() => {
-    supabase.from("wissen_artikel").select("*, wissen_dateien(*)").order("created_at")
-      .then(({ data, error }) => {
-        if (error) { console.error("Wissen-Fehler:", error); }
-        if (data) setArtikel(data.map(a => ({ ...a, dateien: a.wissen_dateien ?? [] })));
-        setWissenLoading(false);
-      });
+    Promise.all([
+      supabase.from("wissen_artikel").select("*, wissen_dateien(*)").order("created_at"),
+      supabase.from("wissen_kategorien").select("*"),
+    ]).then(([artRes, katRes]) => {
+      if (artRes.error) console.error("Wissen-Fehler:", artRes.error);
+      if (katRes.error) console.error("Kategorien-Fehler:", katRes.error);
+      if (katRes.data) {
+        const map = {};
+        katRes.data.forEach(k => { map[k.id] = k.name; });
+        setKategorieMap(map);
+      }
+      if (artRes.data) setArtikel(artRes.data.map(a => ({ ...a, dateien: a.wissen_dateien ?? [] })));
+      setWissenLoading(false);
+    });
   }, []);
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
 
@@ -793,7 +804,7 @@ function WissenView({ isAdmin, showToast }) {
       {/* Detailansicht */}
       {selected && art && !editing && (
         <div style={css.section}>
-          <span style={{ ...css.badge, marginBottom:10, display:"inline-block" }}>{art.kategorie}</span>
+          <span style={{ ...css.badge, marginBottom:10, display:"inline-block" }}>{kategorieMap[art.kategorie_id] ?? art.kategorie ?? "—"}</span>
           <h2 style={{ margin:"0 0 14px", fontSize:20 }}>{art.titel}</h2>
           <p style={{ margin:"0 0 20px", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{art.inhalt}</p>
           {art.dateien.filter(d=>d.typ==="video").map(d=>(
@@ -823,9 +834,9 @@ function WissenView({ isAdmin, showToast }) {
               <div key={a.id} style={{ ...css.section, cursor:"pointer" }} onClick={()=>setSelected(a.id)}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
                   <div style={{ flex:1 }}>
-                    <span style={{ ...css.badge, marginBottom:6, display:"inline-block" }}>{a.kategorie}</span>
+                    <span style={{ ...css.badge, marginBottom:6, display:"inline-block" }}>{kategorieMap[a.kategorie_id] ?? a.kategorie ?? "—"}</span>
                     <h3 style={{ margin:"0 0 4px", fontSize:16 }}>{a.titel}</h3>
-                    <p style={{ margin:0, fontSize:12, color:C.muted }}>{a.inhalt.slice(0,120)}{a.inhalt.length>120?"…":""}</p>
+                    <p style={{ margin:0, fontSize:12, color:C.muted }}>{stripMd(a.inhalt).slice(0,120)}{stripMd(a.inhalt).length>120?"…":""}</p>
                     {videos>0 && <span style={{ fontSize:12, color:C.blue, marginTop:4, display:"inline-block" }}>▶ {videos} Video{videos!==1?"s":""}</span>}
                   </div>
                   {isAdmin && (
