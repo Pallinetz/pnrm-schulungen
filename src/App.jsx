@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { VideoUploader } from "./components/VideoUploader";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { getSignedVideoUrl } from "./lib/videoStorage";
+import { supabase } from "./lib/supabase";
 
 // ─── Farben & Design — exakt wie Original (Arial, #f3f6fb, #2459b8) ──────────
 const C = {
@@ -24,107 +25,7 @@ const SEED_MA = [
   { id:"k6", name:"Ingrid Schäfer",rolle:"Pflegefachkraft", team:"Caritas", email:"schaefer@caritas-kleve.de" },
 ];
 
-const SEED_SCHULUNGEN = [
-  {
-    id: 1,
-    titel: "Schmerzmanagement in der SAPV",
-    orgName: "Palliativ Netzwerk Rhein-Maas GmbH & Co. KG",
-    dokNr: "SAPV-SM-001", version: "1.0", status: "Freigegeben",
-    gueltigAb: "2026-05-10", naechstePruefung: "2027-05-10",
-    erstelltDurch: "Alexander Pfeiffer", freigegebenVon: "Ärztliche Leitung",
-    geltungsbereich: "Alle SAPV-Mitarbeitenden im Versorgungsgebiet Kreis Kleve und Moers",
-    bezugsdokumente: "SAPV-Rahmenvertrag, Nationale VersorgungsLeitlinie Palliativmedizin, S3-Leitlinie Palliativmedizin",
-    kategorie: "Pflege", pflicht: true,
-    bestehensgrenze: 16, maxPunkte: 20,
-    dauer: "ca. 20–30 Min.",
-    grundsatz: "Schmerz ist das häufigste Symptom in der Palliativversorgung. Systematische Erfassung und konsequente Behandlung sind Kernaufgaben der SAPV.",
-    lernziele: "Nach dieser Schulung können Sie Schmerzen systematisch erfassen, bewerten und im Palliativkontext angemessen reagieren.",
-    module: [
-      { titel:"1. Warum Schmerzmanagement in der SAPV so wichtig ist", inhalt:"Unkontrollierter Schmerz ist eines der größten Leidenserfahrungen sterbender Menschen. Die SAPV hat den gesetzlichen Auftrag (§ 37b SGB V), eine spezialisierte, symptomkontrollierte Versorgung zu leisten. Schmerz beeinflusst Würde, Angst, Erschöpfung und das gesamte Erleben des Sterbens." },
-      { titel:"2. Schmerzerfassung — Skalen und Instrumente", inhalt:"NRS (0–10): geeignet für orientierte, kommunikationsfähige Patienten. VRS (verbal): keine Schmerzen / leicht / mäßig / stark. BESD-Skala: für Patienten mit Demenz oder eingeschränkter Kommunikation — Beobachtung von Atmung, Lautäußerungen, Gesichtsausdruck, Körpersprache, Trost. Jede Erfassung wird dokumentiert und kommuniziert." },
-      { titel:"3. WHO-Stufenschema und Durchbruchschmerz", inhalt:"Stufe 1: Nicht-Opioide (Paracetamol, Metamizol, NSAR). Stufe 2: Schwache Opioide (Tramadol, Tilidin). Stufe 3: Starke Opioide (Morphin, Oxycodon, Hydromorphon, Fentanyl). Adjuvanzien auf allen Stufen: Antidepressiva, Antikonvulsiva, Kortikosteroide. Durchbruchschmerz: kurzwirksames Opioid als Bedarfsmedikation, ca. 1/6 der Tagesdosis." },
-      { titel:"4. Meldepflicht und Dokumentation", inhalt:"Schmerz ≥ 4/10 (NRS) oder Eskalation → sofortige Rückmeldung an den verantwortlichen Arzt. Jede Gabe von Bedarfsmedikation dokumentieren. Wiederholung des Assessments nach Intervention. Keine Eigenentscheidung über Dosisänderungen ohne ärztliche Anordnung." },
-    ],
-    checkliste: ["Schmerzassessment durchgeführt (NRS/VRS/BESD)", "Ergebnis dokumentiert", "Bedarfsmedikation bekannt und griffbereit", "Arzt informiert bei NRS ≥ 4 oder Eskalation", "Angehörige in Schmerzbeobachtung einbezogen", "Reevaluation nach Intervention geplant", "Keine Patientendaten in Schulung eingetragen"],
-    fragen: [
-      {q:"Welche Skala ist für Patienten mit Demenz geeignet?", a:["NRS (0–10)","BESD","VAS"], c:1},
-      {q:"Was ist Durchbruchschmerz?", a:["chronischer Dauerschmerz","kurzfristige Schmerzspitze trotz Basismedikation","Schmerz nach einer Operation"], c:1},
-      {q:"Welcher NRS-Wert erfordert sofortige Arzt-Rückmeldung?", a:["NRS 1","NRS 3","NRS ≥ 4"], c:2},
-      {q:"Was umfasst WHO-Stufe 3?", a:["nur Paracetamol","starke Opioide wie Morphin oder Oxycodon","NSAR"], c:1},
-      {q:"Darf die Pflegefachkraft eigenmächtig die Opioid-Dosis erhöhen?", a:["Ja, wenn der Schmerz stark ist","Nein, nur nach ärztlicher Anordnung","Ja, bei bekannter Verträglichkeit"], c:1},
-      {q:"Was beobachtet die BESD-Skala?", a:["nur den Blutdruck","Atmung, Lautäußerungen, Gesicht, Körpersprache, Trost","nur Gesichtsausdruck"], c:1},
-      {q:"Was gehört zur Dokumentationspflicht nach Bedarfsmedikation?", a:["Nichts, nur bei Auffälligkeiten","Uhrzeit, Medikament, Dosis und Wirkung","Nur die Diagnose"], c:1},
-      {q:"Was bedeutet Adjuvanz in der Schmerztherapie?", a:["Ersatz für Opioide","ergänzende Medikamente wie Antidepressiva oder Antikonvulsiva","eine neue WHO-Stufe"], c:1},
-      {q:"Wann ist eine Reevaluation nach Schmerzintervention sinnvoll?", a:["nach 2 Wochen","nie, wenn Patient stabil ist","nach jeder Intervention und nach Dosisschema"], c:2},
-      {q:"Was gilt für den Grundsatz der SAPV-Schmerztherapie?", a:["Schmerz ist unvermeidlich","systematische Erfassung und Behandlung sind Kernauftrag","Schmerz ist nur subjektiv"], c:1},
-      {q:"Welches Opioid ist bei Durchbruchschmerz typischerweise vorgesehen?", a:["ein langwirksames Retardpräparat","ein schnellwirksames kurzwirksames Opioid","ein NSAR"], c:1},
-      {q:"Was tun bei unzureichender Wirkung der Basismedikation?", a:["abwarten","Arzt informieren und dokumentieren","Dosis selbst erhöhen"], c:1},
-      {q:"Für welche Patienten ist die NRS geeignet?", a:["demenzkranke Patienten","orientierte, kommunikationsfähige Patienten","bewusstlose Patienten"], c:1},
-      {q:"Was regelt § 37b SGB V in Bezug auf SAPV?", a:["Rentenansprüche","spezialisierte ambulante Palliativversorgung","Krankenhausaufnahmen"], c:1},
-      {q:"Was gehört NICHT zur BESD-Skala?", a:["Lautäußerungen","Blutdruckmessung","Gesichtsausdruck"], c:1},
-      {q:"Was ist bei der Angehörigeneinbeziehung zu beachten?", a:["Angehörige nicht informieren","Angehörige in Schmerzbeobachtung einbeziehen und schulen","Angehörige übernehmen eigenständig die Medikation"], c:1},
-      {q:"Wann ist kein Arzt zu informieren?", a:["bei NRS 6","bei NRS 0–3 ohne Eskalation","bei jeder Bedarfsgabe"], c:1},
-      {q:"Was bedeutet ‚bedarfsadaptiert' in der Palliativmedizin?", a:["Medikament nur auf Verlangen des Patienten","situationsangepasste Gabe nach Bedarf und Anordnung","Medikament absetzen wenn Patient schläft"], c:1},
-      {q:"Welche Aussage ist richtig?", a:["Opioide verkürzen das Leben","Opioide bei korrekter Dosierung können Lebensqualität verbessern","Opioide dürfen in der SAPV nicht eingesetzt werden"], c:1},
-      {q:"Was ist der erste Schritt bei einem Patienten mit NRS 8?", a:["abwarten bis zur nächsten Visite","sofort Arzt informieren und Bedarfsmedikation gemäß Anordnung","Patienten ablenken"], c:1},
-    ],
-    empfaenger: [], nachweise: {},
-  },
-  {
-    id: 2,
-    titel: "Datenschutz & Schweigepflicht §203 StGB",
-    orgName: "Palliativ Netzwerk Rhein-Maas GmbH & Co. KG",
-    dokNr: "PNRM-DS-001", version: "1.1", status: "Freigegeben",
-    gueltigAb: "2026-04-22", naechstePruefung: "2027-04-22",
-    erstelltDurch: "Alexander Pfeiffer", freigegebenVon: "Geschäftsführung",
-    geltungsbereich: "Alle Mitarbeitenden und Kooperationspartner der PNRM inkl. Caritas-Partnerteam",
-    bezugsdokumente: "DSGVO, BDSG, §203 StGB, §9 MBO-Ä, Datenschutzkonzept PNRM",
-    kategorie: "Recht & Compliance", pflicht: true,
-    bestehensgrenze: 16, maxPunkte: 20,
-    dauer: "ca. 20–30 Min.",
-    grundsatz: "Der Schutz von Patientengeheimnissen ist gesetzliche Pflicht und ethische Grundlage ärztlichen und pflegerischen Handelns.",
-    lernziele: "Sie kennen Ihre Pflichten nach DSGVO, BDSG und §203 StGB und wenden diese im täglichen Arbeitsalltag korrekt an.",
-    module: [
-      { titel:"1. Schweigepflicht §203 StGB — Grundlagen", inhalt:"Die Schweigepflicht schützt Patientengeheimnisse. Unbefugte Weitergabe ist nach §203 StGB strafbar (bis zu 1 Jahr Freiheitsstrafe). Sie gilt auch für ehemalige Patienten und über den Tod hinaus. Ausnahmen: ausdrückliche Einwilligung des Patienten, gesetzliche Offenbarungspflicht, rechtfertigender Notstand. Auch Verwaltungspersonal und Auszubildende sind gebunden." },
-      { titel:"2. DSGVO und besondere Datenkategorien", inhalt:"Gesundheitsdaten sind besondere Kategorien nach Art. 9 DSGVO und erfordern erhöhten Schutz. Grundsätze: Zweckbindung, Datensparsamkeit, Richtigkeit, Speicherbegrenzung. Betroffenenrechte: Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Widerspruch (Art. 21). Verarbeitungsgrundlage: Behandlungsvertrag (Art. 9 Abs. 2h DSGVO)." },
-      { titel:"3. Sichere Kommunikation im SAPV-Alltag", inhalt:"Zulässig: KIM-Dienst (Kommunikation im Medizinwesen), gesicherte Faxverbindungen an verifizierte Nummern, persönliche Übergabe. Nicht zulässig: WhatsApp, Telegram, unverschlüsselte E-Mail, SMS mit Patientendaten. Bildschirme sperren bei Verlassen des Arbeitsplatzes. Unterlagen nicht unbeaufsichtigt in öffentlichen Bereichen." },
-      { titel:"4. Datenpannen und Meldepflicht", inhalt:"Datenschutzverletzung sofort an den betrieblichen Datenschutzbeauftragten melden. Bei erheblichem Risiko: Meldung an Aufsichtsbehörde (LDI NRW) innerhalb von 72 Stunden (Art. 33 DSGVO). Bei hohem Risiko zusätzlich Benachrichtigung der Betroffenen (Art. 34 DSGVO). Jede Verletzung ist zu dokumentieren — auch wenn keine Meldepflicht besteht." },
-    ],
-    checkliste: ["Keine Patientendaten per unverschlüsselter E-Mail oder WhatsApp","Bildschirm gesperrt bei Abwesenheit","Unterlagen nicht unbeaufsichtigt in öffentlichen Bereichen","Dritte nicht unbeaufsichtigt mit Patientenakten","Datenpanne sofort intern gemeldet","Zugangsdaten nicht weitergegeben oder notiert","Keine Patientendaten in diese Schulung eingetragen"],
-    fragen: [
-      {q:"Was regelt §203 StGB?", a:["Datenschutzgrundverordnung","Schweigepflicht für Berufsgeheimnisträger","Meldepflicht bei Infektionskrankheiten"], c:1},
-      {q:"Wie lange gilt die Schweigepflicht?", a:["nur während der Behandlung","bis zur Entlassung","auch nach dem Tod des Patienten"], c:2},
-      {q:"Was ist bei einer Datenpanne zuerst zu tun?", a:["abwarten","sofort intern an den Datenschutzbeauftragten melden","nur dem Patienten Bescheid geben"], c:1},
-      {q:"Welcher Kommunikationskanal ist für Patientendaten geeignet?", a:["WhatsApp","unverschlüsselte E-Mail","KIM-Dienst oder gesicherte Verbindung"], c:2},
-      {q:"Was sind besondere Datenkategorien nach Art. 9 DSGVO?", a:["Geburtsdaten","Gesundheitsdaten","Adressdaten"], c:1},
-      {q:"Innerhalb welcher Frist muss eine meldepflichtige Datenpanne der Behörde gemeldet werden?", a:["7 Tage","30 Tage","72 Stunden"], c:2},
-      {q:"Welches Recht erlaubt Patienten, Auskunft über ihre Daten zu verlangen?", a:["Art. 15 DSGVO (Auskunftsrecht)","Art. 83 DSGVO (Bußgelder)","§203 StGB"], c:0},
-      {q:"Was ist beim Verlassen des Arbeitsplatzes zu tun?", a:["Bildschirm offen lassen","Bildschirm sperren","Unterlagen auf dem Tisch lassen"], c:1},
-      {q:"Wer ist von der Schweigepflicht ausgenommen?", a:["Auszubildende","Verwaltungspersonal","Niemand — sie gilt für alle Mitarbeitenden"], c:2},
-      {q:"Was gilt für Patientendaten per SMS?", a:["erlaubt bei dringenden Fällen","nie erlaubt für Patientendaten","erlaubt wenn keine E-Mail möglich"], c:1},
-      {q:"Was ist der KIM-Dienst?", a:["ein Messenger für Privatkommunikation","ein sicherer Kommunikationsdienst für medizinische Daten","ein Archivierungssystem"], c:1},
-      {q:"Muss auch eine Datenpanne dokumentiert werden, wenn keine Meldepflicht besteht?", a:["Nein","Ja","Nur wenn der Patient davon erfährt"], c:1},
-      {q:"Was bedeutet Zweckbindung nach DSGVO?", a:["Daten dürfen unbegrenzt genutzt werden","Daten dürfen nur für den Zweck genutzt werden, für den sie erhoben wurden","Daten müssen nach einem Jahr gelöscht werden"], c:1},
-      {q:"Welche Behörde ist in NRW für Datenschutz zuständig?", a:["Bundesbeauftragter für den Datenschutz","LDI NRW (Landesbeauftragte für Datenschutz)","Staatsanwaltschaft"], c:1},
-      {q:"Was ist Datensparsamkeit?", a:["möglichst viele Daten erheben","nur die tatsächlich notwendigen Daten erheben","Daten nicht speichern"], c:1},
-      {q:"Darf eine Pflegefachkraft Informationen an Angehörige weitergeben?", a:["Ja, immer","Nein, nie","Nur mit ausdrücklicher Einwilligung des Patienten"], c:2},
-      {q:"Was ist Art. 17 DSGVO?", a:["Auskunftsrecht","Recht auf Löschung","Widerspruchsrecht"], c:1},
-      {q:"Gilt §203 StGB auch für externe Kooperationspartner wie das Caritas-Team?", a:["Nein, nur für festangestellte Mitarbeiter","Ja, wenn sie in die Patientenversorgung eingebunden sind","Nur für Ärzte"], c:1},
-      {q:"Was ist bei einem Fax mit Patientendaten zu beachten?", a:["Fax ist immer sicher","Empfängernummer vorab verifizieren und Sendebestätigung aufbewahren","Fax niemals verwenden"], c:1},
-      {q:"Was tun wenn ein Fremder fragt, ob ein bestimmter Patient bei PNRM in Betreuung ist?", a:["Auskunft geben wenn die Anfrage freundlich ist","keine Auskunft geben ohne Einwilligung des Patienten","Auskunft geben wenn es ein Arzt ist"], c:1},
-    ],
-    empfaenger: [], nachweise: {},
-  },
-];
-
 const KATEGORIEN = ["Pflege","Medizin","Recht & Compliance","QM","Kommunikation","Notfallmanagement"];
-
-const SEED_WISSEN = [
-  { id:"w1", titel:"Palliative Sedierung – Grundlagen", kategorie:"Medizin",
-    inhalt:"Die palliative Sedierung ist eine medizinische Maßnahme zur Linderung unerträglichen Leidens bei Sterbenden. Sie erfordert eine sorgfältige Indikationsstellung, Aufklärung der Angehörigen und eine ärztliche Anordnung. Unterschieden wird zwischen intermittierender und kontinuierlicher Sedierung. PNRM folgt dem EAPC-Rahmen und der S3-Leitlinie Palliativmedizin.", dateien:[] },
-  { id:"w2", titel:"Schmerzskalen im Überblick", kategorie:"Pflege",
-    inhalt:"NRS (0–10): geeignet für orientierte, kommunikationsfähige Patienten. VRS (keine / leicht / mäßig / stark): bei eingeschränkter Kommunikation. BESD: für Patienten mit Demenz oder Bewusstseinsminderung – beobachtet Atmung, Mimik, Körperhaltung, Lautäußerungen und Reaktion auf Trost. Jede Erfassung ist zu dokumentieren.", dateien:[] },
-];
 const ROLLEN = ["Arzt","Ärztin","Pflegefachkraft","Koordination","Verwaltung","Leitung"];
 
 // ─── Styles (exakt am Original orientiert) ────────────────────────────────────
@@ -802,10 +703,19 @@ function NachweisModal({ sc, ma, onClose }) {
 
 // ─── Wissen ───────────────────────────────────────────────────────────────────
 function WissenView({ isAdmin, showToast }) {
-  const [artikel, setArtikel] = useState(SEED_WISSEN);
+  const [artikel, setArtikel] = useState([]);
+  const [wissenLoading, setWissenLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ titel:"", kategorie:"Pflege", inhalt:"" });
+
+  useEffect(() => {
+    supabase.from("wissen_artikel").select("*, wissen_dateien(*)").order("created_at")
+      .then(({ data, error }) => {
+        if (!error && data) setArtikel(data);
+        setWissenLoading(false);
+      });
+  }, []);
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const art = selected ? artikel.find(a=>a.id===selected) : null;
@@ -836,6 +746,8 @@ function WissenView({ isAdmin, showToast }) {
       : x
     ));
   };
+
+  if (wissenLoading) return <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Wissensdatenbank wird geladen…</p>;
 
   return (
     <div style={{ fontFamily:"Arial,Helvetica,sans-serif" }}>
@@ -940,7 +852,8 @@ function exportExcel(schulungen, ma) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [schulungen, setSchulungen] = useState(SEED_SCHULUNGEN);
+  const [schulungen, setSchulungen] = useState([]);
+  const [schulungenLoading, setSchulungenLoading] = useState(false);
   const [ma, setMa] = useState(SEED_MA);
   const [modal, setModal] = useState(null);
   const [active, setActive] = useState(null);
@@ -948,12 +861,82 @@ export default function App() {
   const [filter, setFilter] = useState("alle");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState(null);
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState(null);
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) checkAdmin(session.user.email);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) checkAdmin(session.user.email);
+      else setIsAdmin(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    setSchulungenLoading(true);
+    supabase.from("schulungen").select("*").order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (!error && data) setSchulungen(data);
+        setSchulungenLoading(false);
+      });
+  }, [user]);
+
+  async function checkAdmin(email) {
+    const { data } = await supabase.from("mitarbeiter").select("rolle").eq("email", email).single();
+    setIsAdmin(data?.rolle === "admin");
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError(null);
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
+    if (error) setLoginError(error.message);
+    setLoginLoading(false);
+  }
+
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),5000);};
   const saveSchul=data=>{ if(active&&modal==="edit"){setSchulungen(s=>s.map(x=>x.id===active.id?{...active,...data}:x));showToast("Gespeichert.");}else{const n={...data,id:Date.now(),empfaenger:[],nachweise:{}};setSchulungen(s=>[...s,n]);showToast("Schulung angelegt.");} setModal(null);setActive(null); };
   const sendSchul=(id,empf)=>{setSchulungen(s=>s.map(x=>x.id===id?{...x,empfaenger:empf}:x));setModal(null);setActive(null);const hasC=empf.some(eid=>ma.find(m=>m.id===eid)?.team==="Caritas");showToast(`✓ An ${empf.length} Personen versendet.`);if(hasC)setTimeout(()=>showToast("⚠️ Caritas-Partnerteam einbezogen — bitte offizielle Weitergabe sicherstellen.","warn"),5500);};
   const saveNachweis=(schulungId,nw)=>{const maMatch=ma.find(m=>m.name.toLowerCase()===nw.name.toLowerCase());const key=maMatch?.id||nw.name;setSchulungen(s=>s.map(x=>x.id===schulungId?{...x,nachweise:{...(x.nachweise||{}),[key]:nw}}:x));showToast(`✓ Nachweis gespeichert. Code: ${nw.code}`);};
   const filtered=schulungen.filter(s=>{const mF=filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&s.empfaenger?.length>0);const mS=!search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());return mF&&mS;});
+
+  if (authLoading) return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, fontFamily:"Arial,Helvetica,sans-serif" }}>
+      <p style={{ color:C.muted, fontSize:15 }}>Laden…</p>
+    </div>
+  );
+
+  if (!user) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Arial,Helvetica,sans-serif" }}>
+      <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:36, width:"100%", maxWidth:400, boxShadow:"0 8px 32px rgba(16,24,40,.08)" }}>
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontSize:10, color:C.blue, fontWeight:700, letterSpacing:2, textTransform:"uppercase", marginBottom:6 }}>Palliativ Netzwerk Rhein-Maas GmbH & Co. KG</div>
+          <h2 style={{ margin:"0 0 4px", fontSize:22, fontWeight:700, color:C.text }}>Schulungsverwaltung</h2>
+          <p style={{ margin:0, fontSize:13, color:C.muted }}>Bitte melden Sie sich an.</p>
+        </div>
+        <form onSubmit={handleLogin} style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"10px 14px" }} />
+          <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"10px 14px" }} />
+          {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
+          <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"11px", fontSize:15, opacity:loginLoading?.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
+        </form>
+      </div>
+      <style>{`*{box-sizing:border-box}`}</style>
+    </div>
+  );
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
@@ -966,11 +949,10 @@ export default function App() {
             <p style={{ margin:0, color:C.muted, fontSize:13 }}>SAPV · Kreis Kleve & Moers · DIN EN 15224</p>
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-            <button type="button" onClick={e=>{ e.stopPropagation(); setIsAdmin(a=>!a); }} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px", background:isAdmin?C.blueDim:"#f9fafb", border:`1px solid ${isAdmin?C.blue:C.border}` }}>
-              {isAdmin?"🔐 Admin":"👤 Nutzer"}
-            </button>
+            <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{isAdmin?"🔐 Admin":"👤"} {user?.email}</span>
             <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>📊 Excel-Export</button>
             {isAdmin&&tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={css.btn}>+ Neue Schulung</button>}
+            <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px" }}>Abmelden</button>
           </div>
         </div>
       </header>
@@ -1000,7 +982,8 @@ export default function App() {
             ))}
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Titel oder Dok.-Nr. suchen…" style={{ ...css.inp, flex:1, minWidth:160, padding:"7px 13px" }} />
           </div>
-          {filtered.length===0&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Keine Schulungen gefunden.</p>}
+          {schulungenLoading&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Schulungen werden geladen…</p>}
+          {!schulungenLoading&&filtered.length===0&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Keine Schulungen gefunden.</p>}
           {filtered.map(sc=>{
             const nwCount=Object.keys(sc.nachweise||{}).length; const sent=sc.empfaenger?.length||0;
             return <div key={sc.id} style={{ ...css.section, cursor:"pointer" }} onClick={()=>{setActive(sc);setModal("player");}}>
