@@ -579,9 +579,51 @@ Format:
 }
 
 // ─── Mitarbeiterverwaltung ────────────────────────────────────────────────────
-function MitarbeiterView({ ma, setMa, showToast }) {
+function InviteModal({ onClose, showToast }) {
+  const [form, setForm] = useState({ name:"", email:"", rolle:ROLLEN[0] });
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const handleInvite = async () => {
+    if (!form.email.trim() || !form.name.trim()) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke("invite-user", {
+        body: { email: form.email, name: form.name, rolle: form.rolle },
+      });
+      if (error) throw error;
+      setResult(`Einladung an ${form.email} gesendet.`);
+      showToast(`Einladung an ${form.email} gesendet.`);
+    } catch (e) {
+      setResult(`Fehler: ${e.message}`);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
+      <h2 style={{ margin:"0 0 18px", fontSize:20 }}>Mitarbeiter einladen</h2>
+      {result
+        ? <div style={css.good}>{result}</div>
+        : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} placeholder="Vor- und Nachname" /></div>
+            <div><label style={css.lbl}>E-Mail</label><input type="email" value={form.email} onChange={e=>set("email",e.target.value)} style={css.inp} placeholder="email@pallinetz.de" /></div>
+            <div><label style={css.lbl}>Rolle</label><select value={form.rolle} onChange={e=>set("rolle",e.target.value)} style={css.inp}>{ROLLEN.map(r=><option key={r}>{r}</option>)}</select></div>
+          </div>
+      }
+      <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:18 }}>
+        <button onClick={onClose} style={css.btnSec}>Schließen</button>
+        {!result && <button onClick={handleInvite} disabled={loading||!form.email||!form.name} style={{ ...css.btn, opacity:(loading||!form.email||!form.name)?0.65:1 }}>{loading?"Wird gesendet…":"Einladung senden"}</button>}
+      </div>
+    </div>
+  );
+}
+
+function MitarbeiterView({ ma, setMa, showToast, isAdmin }) {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
+  const [inviteOpen, setInviteOpen] = useState(false);
   const fileRef = useRef();
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const save = () => { if(!form.name.trim())return; editing==="neu"?setMa(m=>[...m,form]):setMa(m=>m.map(x=>x.id===editing?form:x)); setEditing(null); showToast(editing==="neu"?"Hinzugefügt.":"Gespeichert."); };
@@ -599,6 +641,7 @@ function MitarbeiterView({ ma, setMa, showToast }) {
           <button onClick={()=>fileRef.current.click()} style={{ ...css.btnSec, fontSize:13, padding:"8px 13px" }}>📥 Import</button>
           <input ref={fileRef} type="file" accept=".xlsx,.csv" onChange={importCSV} style={{ display:"none" }} />
           <button onClick={()=>{ setEditing("neu"); setForm({id:`k${Date.now()}`,name:"",rolle:ROLLEN[0],team:"PNRM",email:""}); }} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Neu</button>
+          {isAdmin && <button onClick={()=>setInviteOpen(true)} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Einladen</button>}
         </div>
       </div>
       {editing && (
@@ -632,6 +675,7 @@ function MitarbeiterView({ ma, setMa, showToast }) {
       <div style={{ marginTop:14, padding:"10px 14px", background:"#fbfcff", border:`1px solid ${C.border}`, borderRadius:10, fontSize:12, color:C.muted }}>
         CSV/Excel-Format: Spalten <strong style={{ color:C.text }}>Name, Rolle, Team, Email</strong>
       </div>
+      {inviteOpen && <Modal onClose={()=>setInviteOpen(false)}><InviteModal onClose={()=>setInviteOpen(false)} showToast={showToast} /></Modal>}
     </div>
   );
 }
@@ -880,6 +924,10 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [loginView, setLoginView] = useState("login");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetResult, setResetResult] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -998,7 +1046,7 @@ export default function App() {
           })}
         </>}
         {tab==="wissen"&&<WissenView isAdmin={isAdmin} showToast={showToast} />}
-        {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} />}
+        {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} />}
       </div>
 
       {(modal==="neu"||modal==="edit")&&<Modal onClose={()=>setModal(null)} wide><SchulungForm schulung={modal==="edit"?active:null} onSave={saveSchul} onClose={()=>setModal(null)} isAdmin={isAdmin} /></Modal>}
@@ -1006,14 +1054,32 @@ export default function App() {
       {modal==="send"&&active&&<Modal onClose={()=>setModal(null)}><SendModal sc={active} ma={ma} onClose={()=>setModal(null)} onSend={sendSchul} /></Modal>}
       {modal==="nw"&&active&&<Modal onClose={()=>setModal(null)} wide><NachweisModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
 
-      {loginModal&&<Modal onClose={()=>{setLoginModal(false);setLoginError(null);}}>
-        <h2 style={{ margin:"0 0 20px", fontSize:20 }}>Anmelden</h2>
-        <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);}else{setLoginModal(false);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"10px 14px" }} />
-          <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"10px 14px" }} />
-          {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
-          <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"11px", fontSize:15, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
-        </form>
+      {loginModal&&<Modal onClose={()=>{setLoginModal(false);setLoginError(null);setLoginView("login");setResetResult(null);}}>
+        {loginView==="reset" ? (
+          <div>
+            <h2 style={{ margin:"0 0 8px", fontSize:20 }}>Passwort zurücksetzen</h2>
+            <p style={{ margin:"0 0 18px", fontSize:14, color:C.muted }}>Gib deine E-Mail-Adresse ein. Du erhältst einen Reset-Link.</p>
+            {resetResult
+              ? <div style={css.good}>{resetResult}</div>
+              : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" style={{ ...css.inp, padding:"10px 14px" }} />
+                  <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} style={{ ...css.btn, padding:"11px", fontSize:15, opacity:(resetLoading||!resetEmail)?0.65:1 }}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
+                </div>
+            }
+            <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:13, marginTop:14, padding:0 }}>← Zurück zum Login</button>
+          </div>
+        ) : (
+          <div>
+            <h2 style={{ margin:"0 0 20px", fontSize:20 }}>Anmelden</h2>
+            <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);}else{setLoginModal(false);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"10px 14px" }} />
+              <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"10px 14px" }} />
+              {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
+              <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"11px", fontSize:15, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
+              <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:13, padding:0, textAlign:"center" }}>Passwort vergessen?</button>
+            </form>
+          </div>
+        )}
       </Modal>}
 
       {toast&&<div style={{ position:"fixed",bottom:22,right:22,background:toast.type==="warn"?C.warn.bg:C.good.bg,border:`1px solid ${toast.type==="warn"?C.warn.border:C.good.border}`,color:toast.type==="warn"?C.warn.text:C.good.text,padding:"12px 20px",borderRadius:12,fontSize:14,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.12)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}>{toast.msg}</div>}
