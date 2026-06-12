@@ -919,7 +919,6 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loginModal, setLoginModal] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState(null);
@@ -944,9 +943,7 @@ export default function App() {
 
   useEffect(() => {
     setSchulungenLoading(true);
-    let q = supabase.from("schulungen").select("*").order("created_at", { ascending: false });
-    if (!user) q = q.eq("status", "Freigegeben");
-    q.then(({ data, error }) => {
+    supabase.from("schulungen").select("*").order("created_at", { ascending: false }).then(({ data, error }) => {
       if (!error && data) setSchulungen(data);
       setSchulungenLoading(false);
     });
@@ -958,20 +955,45 @@ export default function App() {
     setIsAdmin(data?.rolle === "admin");
   }
 
-  async function handleLogin(e) {
-    e.preventDefault();
-    setLoginLoading(true);
-    setLoginError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
-    if (error) setLoginError(error.message);
-    setLoginLoading(false);
-  }
-
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),5000);};
   const saveSchul=data=>{ if(active&&modal==="edit"){setSchulungen(s=>s.map(x=>x.id===active.id?{...active,...data}:x));showToast("Gespeichert.");}else{const n={...data,id:Date.now(),empfaenger:[],nachweise:{}};setSchulungen(s=>[...s,n]);showToast("Schulung angelegt.");} setModal(null);setActive(null); };
   const sendSchul=(id,empf)=>{setSchulungen(s=>s.map(x=>x.id===id?{...x,empfaenger:empf}:x));setModal(null);setActive(null);const hasC=empf.some(eid=>ma.find(m=>m.id===eid)?.team==="Caritas");showToast(`✓ An ${empf.length} Personen versendet.`);if(hasC)setTimeout(()=>showToast("⚠️ Caritas-Partnerteam einbezogen — bitte offizielle Weitergabe sicherstellen.","warn"),5500);};
   const saveNachweis=(schulungId,nw)=>{const maMatch=ma.find(m=>m.name.toLowerCase()===nw.name.toLowerCase());const key=maMatch?.id||nw.name;setSchulungen(s=>s.map(x=>x.id===schulungId?{...x,nachweise:{...(x.nachweise||{}),[key]:nw}}:x));showToast(`✓ Nachweis gespeichert. Code: ${nw.code}`);};
   const filtered=schulungen.filter(s=>{const mF=filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&s.empfaenger?.length>0);const mS=!search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());return mF&&mS;});
+
+  if (!user) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
+      <div style={{ background:C.white, borderRadius:20, padding:40, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,.14)", border:`1px solid ${C.border}` }}>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <div style={{ fontSize:10, color:C.blue, fontWeight:700, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>Palliativ Netzwerk Rhein-Maas GmbH & Co. KG</div>
+          <h1 style={{ margin:"0 0 4px", fontSize:22, fontWeight:700 }}>Schulungsverwaltung</h1>
+          <p style={{ margin:0, color:C.muted, fontSize:13 }}>SAPV · Kreis Kleve & Moers</p>
+        </div>
+        {loginView==="reset" ? (
+          <div>
+            <h2 style={{ margin:"0 0 8px", fontSize:18 }}>Passwort zurücksetzen</h2>
+            <p style={{ margin:"0 0 14px", fontSize:14, color:C.muted }}>Gib deine E-Mail-Adresse ein. Du erhältst einen Reset-Link.</p>
+            {resetResult
+              ? <div style={css.good}>{resetResult}</div>
+              : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" style={{ ...css.inp, padding:"11px 14px" }} />
+                  <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} style={{ ...css.btn, padding:"12px", fontSize:15, opacity:(resetLoading||!resetEmail)?0.65:1 }}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
+                </div>
+            }
+            <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:13, marginTop:14, padding:0 }}>← Zurück zum Login</button>
+          </div>
+        ) : (
+          <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"11px 14px" }} />
+            <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"11px 14px" }} />
+            {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
+            <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"12px", fontSize:15, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
+            <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:13, padding:0, textAlign:"center" }}>Passwort vergessen?</button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
@@ -987,10 +1009,7 @@ export default function App() {
             {user && <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{isAdmin?"🔐 Admin":"👤"} {user.email}</span>}
             {user && <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>📊 Excel-Export</button>}
             {isAdmin&&tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={css.btn}>+ Neue Schulung</button>}
-            {user
-              ? <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px" }}>Abmelden</button>
-              : <button type="button" onClick={()=>setLoginModal(true)} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px" }}>Anmelden</button>
-            }
+            <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px" }}>Abmelden</button>
           </div>
         </div>
       </header>
@@ -1053,34 +1072,6 @@ export default function App() {
       {modal==="player"&&active&&<Modal onClose={()=>setModal(null)} wide><SchulungsPlayer sc={active} onClose={()=>setModal(null)} onNachweis={(id,nw)=>saveNachweis(id,nw)} /></Modal>}
       {modal==="send"&&active&&<Modal onClose={()=>setModal(null)}><SendModal sc={active} ma={ma} onClose={()=>setModal(null)} onSend={sendSchul} /></Modal>}
       {modal==="nw"&&active&&<Modal onClose={()=>setModal(null)} wide><NachweisModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
-
-      {loginModal&&<Modal onClose={()=>{setLoginModal(false);setLoginError(null);setLoginView("login");setResetResult(null);}}>
-        {loginView==="reset" ? (
-          <div>
-            <h2 style={{ margin:"0 0 8px", fontSize:20 }}>Passwort zurücksetzen</h2>
-            <p style={{ margin:"0 0 18px", fontSize:14, color:C.muted }}>Gib deine E-Mail-Adresse ein. Du erhältst einen Reset-Link.</p>
-            {resetResult
-              ? <div style={css.good}>{resetResult}</div>
-              : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                  <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" style={{ ...css.inp, padding:"10px 14px" }} />
-                  <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} style={{ ...css.btn, padding:"11px", fontSize:15, opacity:(resetLoading||!resetEmail)?0.65:1 }}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
-                </div>
-            }
-            <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:13, marginTop:14, padding:0 }}>← Zurück zum Login</button>
-          </div>
-        ) : (
-          <div>
-            <h2 style={{ margin:"0 0 20px", fontSize:20 }}>Anmelden</h2>
-            <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);}else{setLoginModal(false);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"10px 14px" }} />
-              <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"10px 14px" }} />
-              {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
-              <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"11px", fontSize:15, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
-              <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:13, padding:0, textAlign:"center" }}>Passwort vergessen?</button>
-            </form>
-          </div>
-        )}
-      </Modal>}
 
       {toast&&<div style={{ position:"fixed",bottom:22,right:22,background:toast.type==="warn"?C.warn.bg:C.good.bg,border:`1px solid ${toast.type==="warn"?C.warn.border:C.good.border}`,color:toast.type==="warn"?C.warn.text:C.good.text,padding:"12px 20px",borderRadius:12,fontSize:14,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.12)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}>{toast.msg}</div>}
       <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} *{box-sizing:border-box} select option{background:#fff;color:#172033} button:hover{filter:brightness(.95)}`}</style>
