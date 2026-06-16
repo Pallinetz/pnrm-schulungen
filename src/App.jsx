@@ -65,7 +65,7 @@ const css = {
 function PNRMLogo({ compact }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", lineHeight:1 }}>
-      <img src="/logo.png" alt="Palliativ Netzwerk Rhein-Maas" style={{ height: compact ? 38 : 56, width:"auto" }} />
+      <img src="/logo.png" alt="Palliativ Netzwerk Rhein-Maas" style={{ height: compact ? "48px" : "60px", width:"auto", objectFit:"contain", display:"block" }} />
       {!compact && <div style={{ fontSize:11, color:C.muted, letterSpacing:"0.3px", marginTop:6 }}>Schulungsverwaltung</div>}
     </div>
   );
