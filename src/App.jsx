@@ -61,19 +61,12 @@ const css = {
   progress: { height:5, background:C.border, borderRadius:999, overflow:"hidden", marginTop:10 },
 };
 
-// ─── PNRM Logo mit Wellenlinie ────────────────────────────────────────────────
+// ─── PNRM Logo ────────────────────────────────────────────────────────────────
 function PNRMLogo({ compact }) {
   return (
-    <div style={{ display:"flex", flexDirection:"column", lineHeight:1 }}>
-      <svg width="148" height="18" viewBox="0 0 148 18" fill="none" style={{ marginBottom:3 }}>
-        <path d="M2 13 C20 3, 40 16, 60 8 C80 0, 100 14, 120 6 C132 2, 140 8, 146 6"
-          stroke={C.blueLight} strokeWidth="2.2" fill="none" strokeLinecap="round"/>
-        <path d="M2 17 C25 9, 50 18, 74 11 C98 4, 122 16, 146 10"
-          stroke={C.teal} strokeWidth="1.2" fill="none" strokeLinecap="round" opacity="0.55"/>
-      </svg>
-      <div style={{ fontSize:12, fontWeight:700, color:C.navy, letterSpacing:"2px", textTransform:"uppercase" }}>Palliativ Netzwerk</div>
-      <div style={{ fontSize:9, fontWeight:400, color:C.blueAccent, letterSpacing:"3px", textTransform:"uppercase" }}>Rhein-Maas</div>
-      {!compact && <div style={{ fontSize:10, color:C.muted, letterSpacing:"0.3px", marginTop:1 }}>Schulungsverwaltung</div>}
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", lineHeight:1 }}>
+      <img src="/logo.png" alt="Palliativ Netzwerk Rhein-Maas" style={{ height: compact ? 38 : 56, width:"auto" }} />
+      {!compact && <div style={{ fontSize:11, color:C.muted, letterSpacing:"0.3px", marginTop:6 }}>Schulungsverwaltung</div>}
     </div>
   );
 }
