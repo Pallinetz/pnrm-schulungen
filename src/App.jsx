@@ -5,16 +5,26 @@ import { VideoPlayer } from "./components/VideoPlayer";
 import { getSignedVideoUrl } from "./lib/videoStorage";
 import { supabase } from "./lib/supabase";
 
-// ─── Farben & Design ──────────────────────────────────────────────────────────
+// ─── Farben & Design — PNRM Corporate ─────────────────────────────────────────
 const C = {
-  bg: "#F8F9FB", white: "#FFFFFF",
-  blue: "#1E3A6E", blueDim: "#EEF2F9", blueLight: "#4A6FA5",
-  blueBorder: "#E2E6ED", border: "#E2E6ED", inputBorder: "#D1D9E6",
-  text: "#1A202C", muted: "#6B7280",
-  good: { bg:"#ECFDF5", border:"#A7F3D0", text:"#065F46" },
-  warn: { bg:"#FFFBEB", border:"#FDE68A", text:"#92400E" },
-  bad:  { bg:"#FEF2F2", border:"#FECACA", text:"#991B1B" },
-  ok:   { bg:"#EFF6FF", border:"#BFDBFE", text:"#1E40AF" },
+  bg: "#F0F4F8",
+  white: "#FFFFFF",
+  blue: "#2E4B6E",         // primary navy — alle bestehenden C.blue-Refs bleiben gültig
+  navy: "#2E4B6E",         // alias für neue Komponenten
+  navyDark: "#1E3452",
+  blueAccent: "#3A7CA5",   // mittleres Blau
+  blueLight: "#5BA4C8",
+  blueDim: "#E8F0F7",
+  blueBorder: "#D1DCE8",
+  teal: "#2E7D8C",
+  border: "#D1DCE8",
+  inputBorder: "#C5D0DE",
+  text: "#1A2638",
+  muted: "#5A6E85",
+  good: { bg:"#E8F5EE", border:"#A3D9B5", text:"#1A6B3C" },
+  warn: { bg:"#FEF3E2", border:"#F5D08A", text:"#8B5E00" },
+  bad:  { bg:"#FDECEA", border:"#F5A5A5", text:"#8B1A1A" },
+  ok:   { bg:"#E8F0F7", border:"#A8C4DC", text:"#2E4B6E" },
 };
 const FONT = "'Inter', -apple-system, sans-serif";
 
@@ -33,23 +43,40 @@ const ROLLEN = ["Arzt","Ärztin","Pflegefachkraft","Koordination","Verwaltung","
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const css = {
-  section: { background:C.white, border:`1px solid ${C.border}`, borderRadius:10, padding:20, margin:"12px 0" },
+  section: { background:C.white, border:`1px solid ${C.border}`, borderRadius:12, padding:20, margin:"12px 0" },
   inp: { width:"100%", fontSize:14, padding:"10px 14px", border:`1px solid ${C.inputBorder}`, borderRadius:8, background:C.white, color:C.text, boxSizing:"border-box", fontFamily:FONT, outline:"none" },
   lbl: { display:"block", fontWeight:600, marginBottom:4, fontSize:13, color:C.text },
-  btn: { appearance:"none", border:0, borderRadius:8, background:C.blue, color:C.white, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT },
-  btnSec: { appearance:"none", borderRadius:8, background:"transparent", color:C.blue, border:`1px solid ${C.border}`, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT },
+  btn: { appearance:"none", border:0, borderRadius:8, background:C.navy, color:C.white, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT },
+  btnSec: { appearance:"none", borderRadius:8, background:"transparent", color:C.navy, border:`1px solid ${C.border}`, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT },
   btnDanger: { background:C.bad.bg, color:C.bad.text, border:`1px solid ${C.bad.border}`, borderRadius:8, padding:"6px 12px", fontWeight:600, fontSize:13, cursor:"pointer", appearance:"none", fontFamily:FONT },
   good: { background:C.good.bg, border:`1px solid ${C.good.border}`, color:C.good.text, padding:"12px 16px", borderRadius:8, fontSize:14 },
   bad:  { background:C.bad.bg,  border:`1px solid ${C.bad.border}`,  color:C.bad.text,  padding:"12px 16px", borderRadius:8, fontSize:14 },
   notice: { background:C.warn.bg, border:`1px solid ${C.warn.border}`, color:C.warn.text, padding:"12px 16px", borderRadius:8, fontSize:14 },
-  module: { borderLeft:`4px solid ${C.blue}`, paddingLeft:14, margin:"16px 0" },
-  badge: { display:"inline-block", background:C.blueDim, color:C.blue, padding:"4px 10px", borderRadius:999, fontWeight:600, fontSize:12 },
+  module: { borderLeft:`4px solid ${C.navy}`, paddingLeft:14, margin:"16px 0" },
+  badge: { display:"inline-block", background:C.blueDim, color:C.navy, padding:"4px 10px", borderRadius:20, fontWeight:600, fontSize:12 },
   docmeta: { display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginTop:12, fontSize:13 },
   docmetaCell: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:8, padding:"8px 10px" },
   qBox: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:10, padding:"13px 15px", marginBottom:12 },
   confirmBox: { display:"flex", gap:10, alignItems:"flex-start", border:`1px solid ${C.border}`, background:C.bg, borderRadius:8, padding:12, margin:"8px 0" },
   progress: { height:5, background:C.border, borderRadius:999, overflow:"hidden", marginTop:10 },
 };
+
+// ─── PNRM Logo mit Wellenlinie ────────────────────────────────────────────────
+function PNRMLogo({ compact }) {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", lineHeight:1 }}>
+      <svg width="148" height="18" viewBox="0 0 148 18" fill="none" style={{ marginBottom:3 }}>
+        <path d="M2 13 C20 3, 40 16, 60 8 C80 0, 100 14, 120 6 C132 2, 140 8, 146 6"
+          stroke={C.blueLight} strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+        <path d="M2 17 C25 9, 50 18, 74 11 C98 4, 122 16, 146 10"
+          stroke={C.teal} strokeWidth="1.2" fill="none" strokeLinecap="round" opacity="0.55"/>
+      </svg>
+      <div style={{ fontSize:12, fontWeight:700, color:C.navy, letterSpacing:"2px", textTransform:"uppercase" }}>Palliativ Netzwerk</div>
+      <div style={{ fontSize:9, fontWeight:400, color:C.blueAccent, letterSpacing:"3px", textTransform:"uppercase" }}>Rhein-Maas</div>
+      {!compact && <div style={{ fontSize:10, color:C.muted, letterSpacing:"0.3px", marginTop:1 }}>Schulungsverwaltung</div>}
+    </div>
+  );
+}
 
 // ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
 async function callAI(system, user) {
@@ -187,7 +214,7 @@ function SchulungsPlayer({ sc, onClose, onNachweis }) {
           ))}
         </nav>
         {/* Fortschrittsbalken */}
-        <div style={css.progress}><div style={{ height:"100%", background:C.blue, width:`${pct}%`, transition:"width .4s ease", borderRadius:999 }} /></div>
+        <div style={css.progress}><div style={{ height:"100%", background:`linear-gradient(90deg, ${C.navy}, ${C.blueAccent})`, width:`${pct}%`, transition:"width .4s ease", borderRadius:999 }} /></div>
       </div>
 
       {/* ── Start ── */}
@@ -965,14 +992,21 @@ export default function App() {
   const filtered=schulungen.filter(s=>{const mF=filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&s.empfaenger?.length>0);const mS=!search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());return mF&&mS;});
 
   if (!user) return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:FONT, color:C.text }}>
-      <div style={{ background:C.white, borderRadius:12, padding:"40px 36px", width:"100%", maxWidth:420, boxShadow:"0 4px 24px rgba(0,0,0,.08)", border:`1px solid ${C.border}` }}>
-        <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:12, marginBottom:12 }}>
-            <div style={{ width:36, height:36, background:C.blue, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", color:C.white, fontWeight:700, fontSize:18, flexShrink:0 }}>P</div>
-            <span style={{ fontWeight:700, fontSize:17, color:C.text }}>PNRM Schulungen</span>
+    <div style={{ minHeight:"100vh", background:`linear-gradient(160deg, #E8EFF8 0%, #F0F4F8 60%, #E4EEF5 100%)`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:FONT, color:C.text, position:"relative", overflow:"hidden" }}>
+      {/* Dezente Wellen im Hintergrund */}
+      <svg style={{ position:"absolute", bottom:0, left:0, width:"100%", opacity:0.07, pointerEvents:"none" }} viewBox="0 0 1200 200" preserveAspectRatio="none">
+        <path d="M0,120 Q200,40 400,100 Q600,160 800,80 Q1000,0 1200,60 L1200,200 L0,200 Z" fill={C.navy}/>
+      </svg>
+      <svg style={{ position:"absolute", top:0, right:0, width:"60%", opacity:0.04, pointerEvents:"none" }} viewBox="0 0 800 300" preserveAspectRatio="none">
+        <path d="M800,0 Q600,80 400,40 Q200,0 0,60 L0,0 Z" fill={C.blueAccent}/>
+      </svg>
+      <div style={{ background:C.white, borderRadius:16, padding:"40px 36px", width:"100%", maxWidth:420, boxShadow:"0 8px 40px rgba(46,75,110,0.12)", border:`1px solid ${C.border}`, position:"relative", zIndex:1 }}>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <div style={{ display:"inline-flex", flexDirection:"column", alignItems:"center", gap:4, marginBottom:16 }}>
+            <PNRMLogo compact={false} />
           </div>
-          <p style={{ margin:0, color:C.muted, fontSize:14 }}>Bitte melden Sie sich an.</p>
+          <h1 style={{ margin:"4px 0 4px", fontSize:19, fontWeight:700, color:C.text }}>Schulungsverwaltung</h1>
+          <p style={{ margin:0, color:C.muted, fontSize:13 }}>Interne Schulungsplattform · SAPV</p>
         </div>
         {loginView==="reset" ? (
           <div>
@@ -985,7 +1019,7 @@ export default function App() {
                   <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} style={{ ...css.btn, padding:"12px 16px", fontSize:14, width:"100%", borderRadius:8, opacity:(resetLoading||!resetEmail)?0.65:1 }}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
                 </div>
             }
-            <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:13, marginTop:14, padding:0 }}>← Zurück zum Login</button>
+            <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} style={{ background:"none", border:"none", color:C.blueAccent, cursor:"pointer", fontSize:13, marginTop:14, padding:0 }}>← Zurück zum Login</button>
           </div>
         ) : (
           <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
@@ -993,7 +1027,7 @@ export default function App() {
             <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"12px 16px" }} />
             {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
             <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"12px 16px", fontSize:14, width:"100%", borderRadius:8, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
-            <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:0, textAlign:"center" }}>Passwort vergessen?</button>
+            <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.blueAccent, cursor:"pointer", fontSize:13, padding:0, textAlign:"center" }}>Passwort vergessen?</button>
           </form>
         )}
       </div>
@@ -1003,14 +1037,16 @@ export default function App() {
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:FONT, color:C.text, fontSize:15 }}>
       {/* Header */}
-      <header style={{ background:C.white, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:10 }}>
-        <div style={{ maxWidth:980, margin:"0 auto", padding:"10px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:32, height:32, background:C.blue, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", color:C.white, fontWeight:700, fontSize:17, flexShrink:0 }}>P</div>
-            <span style={{ fontWeight:700, fontSize:16, color:C.text }}>PNRM Schulungen</span>
-          </div>
+      <header style={{ background:C.white, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:10, boxShadow:"0 1px 8px rgba(46,75,110,0.06)" }}>
+        <div style={{ maxWidth:980, margin:"0 auto", padding:"10px 24px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+          <PNRMLogo compact={true} />
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-            {user && <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{isAdmin?"⚿":""} {user.email}</span>}
+            {isAdmin && user && (
+              <span style={{ background:C.navy, color:C.white, borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:500, whiteSpace:"nowrap" }}>
+                ⚿ {user.email}
+              </span>
+            )}
+            {!isAdmin && user && <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{user.email}</span>}
             {user && <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"7px 13px" }}>Excel-Export</button>}
             {isAdmin&&tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={{ ...css.btn, fontSize:13, padding:"7px 14px" }}>+ Neue Schulung</button>}
             <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"6px 12px" }}>Abmelden</button>
@@ -1021,10 +1057,10 @@ export default function App() {
       <div style={{ maxWidth:980, margin:"0 auto", padding:"20px" }}>
         {/* Stats */}
         <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
-          {[["Schulungen",schulungen.length,"#1E3A6E"],["Freigegeben",schulungen.filter(s=>s.status==="Freigegeben").length,"#065F46"],["Versendet",schulungen.filter(s=>s.empfaenger?.length>0).length,"#1E40AF"],["Nachweise",schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0),"#92400E"],["Mitarbeiter",ma.length,"#6B7280"]].map(([l,v,accent])=>(
+          {[["Schulungen",schulungen.length,C.navy],["Freigegeben",schulungen.filter(s=>s.status==="Freigegeben").length,C.good.text],["Versendet",schulungen.filter(s=>s.empfaenger?.length>0).length,C.blueAccent],["Nachweise",schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0),C.teal],["Mitarbeiter",ma.length,C.muted]].map(([l,v,accent])=>(
             <div key={l} style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 16px", borderLeft:`3px solid ${accent}`, display:"flex", flexDirection:"column", gap:2 }}>
-              <div style={{ fontSize:20, fontWeight:700, color:C.text, lineHeight:1 }}>{v}</div>
-              <div style={{ fontSize:12, color:C.muted }}>{l}</div>
+              <div style={{ fontSize:22, fontWeight:700, color:C.navy, lineHeight:1 }}>{v}</div>
+              <div style={{ fontSize:11, color:C.muted }}>{l}</div>
             </div>
           ))}
         </div>
@@ -1032,14 +1068,14 @@ export default function App() {
         {/* Tabs */}
         <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, marginBottom:18 }}>
           {[["schulungen","Schulungen"],["wissen","Wissen"],...(user?[["mitarbeiter","Mitarbeiter"]]:[])]  .map(([id,label])=>(
-            <button key={id} onClick={()=>setTab(id)} style={{ background:"none", border:"none", borderBottom:tab===id?`2px solid ${C.blue}`:"2px solid transparent", color:tab===id?C.blue:C.muted, padding:"10px 16px", cursor:"pointer", fontSize:14, fontWeight:tab===id?600:400, marginBottom:-1, fontFamily:FONT }}>{label}</button>
+            <button key={id} onClick={()=>setTab(id)} style={{ background:"none", border:"none", borderBottom:tab===id?`3px solid ${C.navy}`:"3px solid transparent", color:tab===id?C.navy:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:400, marginBottom:-1, fontFamily:FONT }}>{label}</button>
           ))}
         </div>
 
         {tab==="schulungen"&&<>
           <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
             {["alle","Freigegeben","Entwurf","Pflicht","Versendet"].map(f=>(
-              <button key={f} onClick={()=>setFilter(f)} style={{ background:filter===f?C.blue:"transparent", color:filter===f?C.white:C.muted, border:`1px solid ${filter===f?C.blue:C.border}`, padding:"5px 13px", borderRadius:999, cursor:"pointer", fontSize:13, fontWeight:filter===f?600:400, fontFamily:FONT }}>{f}</button>
+              <button key={f} onClick={()=>setFilter(f)} style={{ background:filter===f?C.navy:"transparent", color:filter===f?C.white:C.muted, border:`1px solid ${filter===f?C.navy:C.border}`, padding:"5px 13px", borderRadius:999, cursor:"pointer", fontSize:13, fontWeight:filter===f?600:400, fontFamily:FONT }}>{f}</button>
             ))}
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Titel oder Dok.-Nr. suchen…" style={{ ...css.inp, flex:1, minWidth:160, padding:"7px 12px", fontSize:13 }} />
           </div>
@@ -1050,12 +1086,12 @@ export default function App() {
             const statusStyle = sc.status==="Freigegeben"
               ? { background:C.good.bg, color:C.good.text }
               : sc.status==="Entwurf"
-              ? { background:"#F3F4F6", color:"#374151" }
+              ? { background:"#EAECEF", color:C.muted }
               : { background:C.warn.bg, color:C.warn.text };
             return <div key={sc.id}
               style={{ ...css.section, cursor:"pointer", padding:20, transition:"box-shadow .15s, border-color .15s" }}
               onClick={()=>{setActive(sc);setModal("player");}}
-              onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.08)";e.currentTarget.style.borderColor="#C5CDD8";}}
+              onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 20px rgba(46,75,110,0.1)";e.currentTarget.style.borderColor=C.blueAccent;}}
               onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.borderColor=C.border;}}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
                 <div style={{ flex:1 }}>
@@ -1064,7 +1100,7 @@ export default function App() {
                     <span style={{ ...css.badge, ...statusStyle }}>{sc.status}</span>
                     {sc.pflicht&&<span style={{ ...css.badge, background:C.warn.bg, color:C.warn.text }}>Pflicht</span>}
                   </div>
-                  <h3 style={{ margin:"0 0 4px", fontSize:18, fontWeight:600, color:C.text }}>{sc.titel}</h3>
+                  <h3 style={{ margin:"0 0 4px", fontSize:17, fontWeight:600, color:C.text }}>{sc.titel}</h3>
                   <p style={{ margin:0, fontSize:13, color:C.muted }}>{sc.dokNr} · v{sc.version} · {sc.gueltigAb}{sent>0?` · ${sent} Empf. · ${nwCount}/${sent} Nachweise`:""}</p>
                 </div>
                 <div style={{ display:"flex", gap:7 }} onClick={e=>e.stopPropagation()}>
@@ -1086,7 +1122,7 @@ export default function App() {
       {modal==="nw"&&active&&<Modal onClose={()=>setModal(null)} wide><NachweisModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
 
       {toast&&<div style={{ position:"fixed",bottom:22,right:22,background:toast.type==="warn"?C.warn.bg:C.good.bg,border:`1px solid ${toast.type==="warn"?C.warn.border:C.good.border}`,color:toast.type==="warn"?C.warn.text:C.good.text,padding:"12px 20px",borderRadius:12,fontSize:14,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.12)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}>{toast.msg}</div>}
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} *{box-sizing:border-box} body{font-family:'Inter',-apple-system,sans-serif} select option{background:#fff;color:#1A202C} button:hover{filter:brightness(.96)} input:focus,textarea:focus,select:focus{border-color:#1E3A6E!important;outline:none!important;}`}</style>
+      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} *{box-sizing:border-box} body{font-family:'Inter',-apple-system,sans-serif;background:#F0F4F8} select option{background:#fff;color:#1A2638} button:hover{filter:brightness(.93)} input:focus,textarea:focus,select:focus{border-color:#2E4B6E!important;outline:none!important;box-shadow:0 0 0 3px rgba(46,75,110,0.08)!important;}`}</style>
     </div>
   );
 }
