@@ -39,7 +39,7 @@ const SEED_MA = [
 ];
 
 const KATEGORIEN = ["Pflege","Medizin","Recht & Compliance","QM","Kommunikation","Notfallmanagement"];
-const ROLLEN = ["Arzt","Ärztin","Pflegefachkraft","Koordination","Verwaltung","Leitung"];
+const ROLLEN = ["Arzt / Ärztin","Pflegefachkraft","Alltagsbegleiter/in","Koordination","Verwaltung","Leitung","Geschäftsführung"];
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const css = {
