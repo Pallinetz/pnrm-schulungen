@@ -5,15 +5,18 @@ import { VideoPlayer } from "./components/VideoPlayer";
 import { getSignedVideoUrl } from "./lib/videoStorage";
 import { supabase } from "./lib/supabase";
 
-// ─── Farben & Design — exakt wie Original (Arial, #f3f6fb, #2459b8) ──────────
+// ─── Farben & Design ──────────────────────────────────────────────────────────
 const C = {
-  bg: "#f3f6fb", white: "#fff", blue: "#2459b8", blueDim: "#eef5ff",
-  blueBorder: "#bed0ed", text: "#172033", muted: "#5f6d82",
-  border: "#d7e0ec", inputBorder: "#cbd6e6",
-  good: { bg:"#eefaf2", border:"#b8e2c7", text:"#0f5331" },
-  bad:  { bg:"#fff1f0", border:"#ffccc7", text:"#842029" },
-  warn: { bg:"#fff7e8", border:"#ffd99c", text:"#543600" },
+  bg: "#F8F9FB", white: "#FFFFFF",
+  blue: "#1E3A6E", blueDim: "#EEF2F9", blueLight: "#4A6FA5",
+  blueBorder: "#E2E6ED", border: "#E2E6ED", inputBorder: "#D1D9E6",
+  text: "#1A202C", muted: "#6B7280",
+  good: { bg:"#ECFDF5", border:"#A7F3D0", text:"#065F46" },
+  warn: { bg:"#FFFBEB", border:"#FDE68A", text:"#92400E" },
+  bad:  { bg:"#FEF2F2", border:"#FECACA", text:"#991B1B" },
+  ok:   { bg:"#EFF6FF", border:"#BFDBFE", text:"#1E40AF" },
 };
+const FONT = "'Inter', -apple-system, sans-serif";
 
 // ─── Seed-Daten ───────────────────────────────────────────────────────────────
 const SEED_MA = [
@@ -28,24 +31,24 @@ const SEED_MA = [
 const KATEGORIEN = ["Pflege","Medizin","Recht & Compliance","QM","Kommunikation","Notfallmanagement"];
 const ROLLEN = ["Arzt","Ärztin","Pflegefachkraft","Koordination","Verwaltung","Leitung"];
 
-// ─── Styles (exakt am Original orientiert) ────────────────────────────────────
+// ─── Styles ────────────────────────────────────────────────────────────────────
 const css = {
-  section: { background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:20, margin:"14px 0", boxShadow:"0 8px 22px rgba(16,24,40,.06)" },
-  inp: { width:"100%", fontSize:15, padding:11, border:`1px solid ${C.inputBorder}`, borderRadius:11, background:C.white, color:C.text, boxSizing:"border-box", fontFamily:"inherit" },
-  lbl: { display:"block", fontWeight:700, marginBottom:5, fontSize:14 },
-  btn: { appearance:"none", border:0, borderRadius:12, background:C.blue, color:C.white, padding:"11px 16px", fontWeight:700, fontSize:15, cursor:"pointer" },
-  btnSec: { appearance:"none", borderRadius:12, background:C.blueDim, color:"#1f365f", border:`1px solid ${C.inputBorder}`, padding:"11px 16px", fontWeight:700, fontSize:14, cursor:"pointer" },
-  btnDanger: { background:C.bad.bg, color:C.bad.text, border:`1px solid ${C.bad.border}`, borderRadius:10, padding:"7px 12px", fontWeight:700, fontSize:13, cursor:"pointer", appearance:"none" },
-  good: { background:C.good.bg, border:`1px solid ${C.good.border}`, color:C.good.text, padding:"13px 16px", borderRadius:13, fontSize:14 },
-  bad:  { background:C.bad.bg,  border:`1px solid ${C.bad.border}`,  color:C.bad.text,  padding:"13px 16px", borderRadius:13, fontSize:14 },
-  notice: { background:C.warn.bg, border:`1px solid ${C.warn.border}`, color:C.warn.text, padding:"13px 16px", borderRadius:13, fontSize:14 },
-  module: { borderLeft:`5px solid ${C.blue}`, paddingLeft:14, margin:"16px 0" },
-  badge: { display:"inline-block", background:C.blueDim, color:C.blue, padding:"6px 12px", borderRadius:999, fontWeight:700, fontSize:12 },
+  section: { background:C.white, border:`1px solid ${C.border}`, borderRadius:10, padding:20, margin:"12px 0" },
+  inp: { width:"100%", fontSize:14, padding:"10px 14px", border:`1px solid ${C.inputBorder}`, borderRadius:8, background:C.white, color:C.text, boxSizing:"border-box", fontFamily:FONT, outline:"none" },
+  lbl: { display:"block", fontWeight:600, marginBottom:4, fontSize:13, color:C.text },
+  btn: { appearance:"none", border:0, borderRadius:8, background:C.blue, color:C.white, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT },
+  btnSec: { appearance:"none", borderRadius:8, background:"transparent", color:C.blue, border:`1px solid ${C.border}`, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT },
+  btnDanger: { background:C.bad.bg, color:C.bad.text, border:`1px solid ${C.bad.border}`, borderRadius:8, padding:"6px 12px", fontWeight:600, fontSize:13, cursor:"pointer", appearance:"none", fontFamily:FONT },
+  good: { background:C.good.bg, border:`1px solid ${C.good.border}`, color:C.good.text, padding:"12px 16px", borderRadius:8, fontSize:14 },
+  bad:  { background:C.bad.bg,  border:`1px solid ${C.bad.border}`,  color:C.bad.text,  padding:"12px 16px", borderRadius:8, fontSize:14 },
+  notice: { background:C.warn.bg, border:`1px solid ${C.warn.border}`, color:C.warn.text, padding:"12px 16px", borderRadius:8, fontSize:14 },
+  module: { borderLeft:`4px solid ${C.blue}`, paddingLeft:14, margin:"16px 0" },
+  badge: { display:"inline-block", background:C.blueDim, color:C.blue, padding:"4px 10px", borderRadius:999, fontWeight:600, fontSize:12 },
   docmeta: { display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginTop:12, fontSize:13 },
-  docmetaCell: { border:`1px solid ${C.border}`, background:"#fbfcff", borderRadius:9, padding:"8px 10px" },
-  qBox: { border:`1px solid ${C.border}`, background:"#fbfcff", borderRadius:13, padding:"13px 15px", marginBottom:13 },
-  confirmBox: { display:"flex", gap:10, alignItems:"flex-start", border:`1px solid ${C.border}`, background:"#fbfcff", borderRadius:12, padding:12, margin:"8px 0" },
-  progress: { height:9, background:"#e7edf7", borderRadius:999, overflow:"hidden", marginTop:10 },
+  docmetaCell: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:8, padding:"8px 10px" },
+  qBox: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:10, padding:"13px 15px", marginBottom:12 },
+  confirmBox: { display:"flex", gap:10, alignItems:"flex-start", border:`1px solid ${C.border}`, background:C.bg, borderRadius:8, padding:12, margin:"8px 0" },
+  progress: { height:5, background:C.border, borderRadius:999, overflow:"hidden", marginTop:10 },
 };
 
 // ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
@@ -158,7 +161,7 @@ function SchulungsPlayer({ sc, onClose, onNachweis }) {
   const tabs = [["start","Start"],["schulung","Schulung"],["checklisten","Checklisten"],["quiz","Quiz"],["nachweis","Nachweis"]];
 
   return (
-    <div style={{ fontFamily:"Arial,Helvetica,sans-serif", color:C.text, lineHeight:1.55, fontSize:16 }}>
+    <div style={{ fontFamily:FONT, color:C.text, lineHeight:1.55, fontSize:16 }}>
       {/* Header */}
       <div style={{ marginBottom:4 }}>
         <div style={{ fontSize:10, color:C.blue, fontWeight:700, letterSpacing:2, textTransform:"uppercase", marginBottom:6 }}>
@@ -416,7 +419,7 @@ Format:
   const meta2 = [["geltungsbereich","Geltungsbereich"],["bezugsdokumente","Bezugsdokumente / Normen"]];
 
   return (
-    <div style={{ fontFamily:"Arial,Helvetica,sans-serif", color:C.text, lineHeight:1.55 }}>
+    <div style={{ fontFamily:FONT, color:C.text, lineHeight:1.55 }}>
       <h2 style={{ margin:"0 0 18px", fontSize:20 }}>{isNew?"Neue Schulung anlegen":"Schulung bearbeiten"}</h2>
 
       {/* Dokumentenlenkung */}
@@ -602,7 +605,7 @@ function InviteModal({ onClose, showToast }) {
   };
 
   return (
-    <div style={{ fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
+    <div style={{ fontFamily:FONT, color:C.text }}>
       <h2 style={{ margin:"0 0 18px", fontSize:20 }}>Mitarbeiter einladen</h2>
       {result
         ? <div style={css.good}>{result}</div>
@@ -634,7 +637,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin }) {
     r.readAsBinaryString(file); e.target.value="";
   };
   return (
-    <div style={{ fontFamily:"Arial,Helvetica,sans-serif" }}>
+    <div style={{ fontFamily:FONT }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
         <h2 style={{ margin:0, fontSize:20 }}>👥 Mitarbeiter</h2>
         <div style={{ display:"flex", gap:8 }}>
@@ -690,7 +693,7 @@ function SendModal({ sc, ma, onClose, onSend }) {
   const genMsg=async()=>{ setAiL(true); const t=await callAI("Kurze Teams-Nachricht für SAPV-Team. Nur Text, kein Betreff.",`Einladung zur Selbstlern-Unterweisung "${sc.titel}"${sc.pflicht?", Pflichtschulung":""}. Freundlich, knapp, professionell.`).catch(()=>""); if(t)setMsg(t); setAiL(false); };
   const hasCaritas=[...sel].some(id=>ma.find(m=>m.id===id)?.team==="Caritas");
   return (
-    <div style={{ fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
+    <div style={{ fontFamily:FONT, color:C.text }}>
       <h2 style={{ margin:"0 0 4px", fontSize:20 }}>📤 Schulung versenden</h2>
       <p style={{ color:C.muted, margin:"0 0 18px", fontSize:14 }}>{sc.titel} · {sc.dokNr} · Version {sc.version}</p>
       <div style={{ display:"flex", gap:8, marginBottom:10 }}>
@@ -726,7 +729,7 @@ function NachweisModal({ sc, ma, onClose }) {
   const done=empf.filter(m=>nw[m.id]); const open=empf.filter(m=>!nw[m.id]);
   const exportXls=()=>{const rows=empf.map(m=>{const n=nw[m.id];return{Schulung:sc.titel,"Dok-Nr":sc.dokNr,Version:sc.version,Name:m.name,Team:m.team,Rolle:m.rolle,Bestanden:n?"Ja":"Ausstehend",Datum:n?.ts||"–",Punkte:n?`${n.score}/${n.maxP}`:"–",Prüfcode:n?.code||"–"};});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),"Nachweise");XLSX.writeFile(wb,`Nachweise_${sc.dokNr}_${new Date().toISOString().slice(0,10)}.xlsx`);};
   return (
-    <div style={{ fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
+    <div style={{ fontFamily:FONT, color:C.text }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
         <div><h2 style={{ margin:"0 0 4px", fontSize:20 }}>📄 Nachweise</h2><p style={{ color:C.muted, margin:0, fontSize:14 }}>{sc.titel} · {sc.dokNr}</p></div>
         <button onClick={exportXls} style={{ ...css.btnSec, fontSize:13 }}>📊 Export</button>
@@ -806,7 +809,7 @@ function WissenView({ isAdmin, showToast }) {
   if (wissenLoading) return <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Wissensdatenbank wird geladen…</p>;
 
   return (
-    <div style={{ fontFamily:"Arial,Helvetica,sans-serif" }}>
+    <div style={{ fontFamily:FONT }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           {selected && <button onClick={()=>setSelected(null)} style={{ ...css.btnSec, fontSize:12, padding:"5px 12px" }}>← Zurück</button>}
@@ -962,12 +965,14 @@ export default function App() {
   const filtered=schulungen.filter(s=>{const mF=filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&s.empfaenger?.length>0);const mS=!search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());return mF&&mS;});
 
   if (!user) return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
-      <div style={{ background:C.white, borderRadius:20, padding:40, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,.14)", border:`1px solid ${C.border}` }}>
-        <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ fontSize:10, color:C.blue, fontWeight:700, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>Palliativ Netzwerk Rhein-Maas GmbH & Co. KG</div>
-          <h1 style={{ margin:"0 0 4px", fontSize:22, fontWeight:700 }}>Schulungsverwaltung</h1>
-          <p style={{ margin:0, color:C.muted, fontSize:13 }}>SAPV · Kreis Kleve & Moers</p>
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:FONT, color:C.text }}>
+      <div style={{ background:C.white, borderRadius:12, padding:"40px 36px", width:"100%", maxWidth:420, boxShadow:"0 4px 24px rgba(0,0,0,.08)", border:`1px solid ${C.border}` }}>
+        <div style={{ textAlign:"center", marginBottom:32 }}>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:12, marginBottom:12 }}>
+            <div style={{ width:36, height:36, background:C.blue, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", color:C.white, fontWeight:700, fontSize:18, flexShrink:0 }}>P</div>
+            <span style={{ fontWeight:700, fontSize:17, color:C.text }}>PNRM Schulungen</span>
+          </div>
+          <p style={{ margin:0, color:C.muted, fontSize:14 }}>Bitte melden Sie sich an.</p>
         </div>
         {loginView==="reset" ? (
           <div>
@@ -976,19 +981,19 @@ export default function App() {
             {resetResult
               ? <div style={css.good}>{resetResult}</div>
               : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                  <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" style={{ ...css.inp, padding:"11px 14px" }} />
-                  <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} style={{ ...css.btn, padding:"12px", fontSize:15, opacity:(resetLoading||!resetEmail)?0.65:1 }}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
+                  <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" style={{ ...css.inp, padding:"12px 16px" }} />
+                  <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} style={{ ...css.btn, padding:"12px 16px", fontSize:14, width:"100%", borderRadius:8, opacity:(resetLoading||!resetEmail)?0.65:1 }}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
                 </div>
             }
             <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:13, marginTop:14, padding:0 }}>← Zurück zum Login</button>
           </div>
         ) : (
           <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
-            <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"11px 14px" }} />
-            <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"11px 14px" }} />
+            <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"12px 16px" }} />
+            <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"12px 16px" }} />
             {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
-            <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"12px", fontSize:15, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
-            <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.blue, cursor:"pointer", fontSize:13, padding:0, textAlign:"center" }}>Passwort vergessen?</button>
+            <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"12px 16px", fontSize:14, width:"100%", borderRadius:8, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
+            <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:0, textAlign:"center" }}>Passwort vergessen?</button>
           </form>
         )}
       </div>
@@ -996,69 +1001,76 @@ export default function App() {
   );
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"Arial,Helvetica,sans-serif", color:C.text }}>
+    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:FONT, color:C.text, fontSize:15 }}>
       {/* Header */}
       <header style={{ background:C.white, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:10 }}>
-        <div style={{ maxWidth:980, margin:"0 auto", padding:"14px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
-          <div>
-            <div style={{ fontSize:10, color:C.blue, fontWeight:700, letterSpacing:2, textTransform:"uppercase" }}>Palliativ Netzwerk Rhein-Maas GmbH & Co. KG</div>
-            <h1 style={{ margin:"2px 0 0", fontSize:22, fontWeight:700 }}>Schulungsverwaltung</h1>
-            <p style={{ margin:0, color:C.muted, fontSize:13 }}>SAPV · Kreis Kleve & Moers · DIN EN 15224</p>
+        <div style={{ maxWidth:980, margin:"0 auto", padding:"10px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:32, height:32, background:C.blue, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", color:C.white, fontWeight:700, fontSize:17, flexShrink:0 }}>P</div>
+            <span style={{ fontWeight:700, fontSize:16, color:C.text }}>PNRM Schulungen</span>
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-            {user && <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{isAdmin?"🔐 Admin":"👤"} {user.email}</span>}
-            {user && <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>📊 Excel-Export</button>}
-            {isAdmin&&tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={css.btn}>+ Neue Schulung</button>}
-            <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"7px 12px" }}>Abmelden</button>
+            {user && <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{isAdmin?"⚿":""} {user.email}</span>}
+            {user && <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"7px 13px" }}>Excel-Export</button>}
+            {isAdmin&&tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={{ ...css.btn, fontSize:13, padding:"7px 14px" }}>+ Neue Schulung</button>}
+            <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"6px 12px" }}>Abmelden</button>
           </div>
         </div>
       </header>
 
       <div style={{ maxWidth:980, margin:"0 auto", padding:"20px" }}>
         {/* Stats */}
-        <div style={{ display:"flex", gap:10, marginBottom:18, flexWrap:"wrap" }}>
-          {[["Schulungen",schulungen.length],["Freigegeben",schulungen.filter(s=>s.status==="Freigegeben").length],["Versendet",schulungen.filter(s=>s.empfaenger?.length>0).length],["Nachweise",schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0)],["Mitarbeiter",ma.length]].map(([l,v])=>(
-            <div key={l} style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 18px", boxShadow:"0 2px 8px rgba(16,24,40,.05)" }}>
-              <div style={{ fontSize:22, fontWeight:700, color:C.blue }}>{v}</div>
+        <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
+          {[["Schulungen",schulungen.length,"#1E3A6E"],["Freigegeben",schulungen.filter(s=>s.status==="Freigegeben").length,"#065F46"],["Versendet",schulungen.filter(s=>s.empfaenger?.length>0).length,"#1E40AF"],["Nachweise",schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0),"#92400E"],["Mitarbeiter",ma.length,"#6B7280"]].map(([l,v,accent])=>(
+            <div key={l} style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 16px", borderLeft:`3px solid ${accent}`, display:"flex", flexDirection:"column", gap:2 }}>
+              <div style={{ fontSize:20, fontWeight:700, color:C.text, lineHeight:1 }}>{v}</div>
               <div style={{ fontSize:12, color:C.muted }}>{l}</div>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{ display:"flex", borderBottom:`2px solid ${C.border}`, marginBottom:18 }}>
-          {[["schulungen","📋 Schulungen"],["wissen","📚 Wissen"],...(user?[["mitarbeiter","👥 Mitarbeiter"]]:[])]  .map(([id,label])=>(
-            <button key={id} onClick={()=>setTab(id)} style={{ background:"none", border:"none", borderBottom:tab===id?`3px solid ${C.blue}`:"3px solid transparent", color:tab===id?C.blue:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:400, marginBottom:-2 }}>{label}</button>
+        <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, marginBottom:18 }}>
+          {[["schulungen","Schulungen"],["wissen","Wissen"],...(user?[["mitarbeiter","Mitarbeiter"]]:[])]  .map(([id,label])=>(
+            <button key={id} onClick={()=>setTab(id)} style={{ background:"none", border:"none", borderBottom:tab===id?`2px solid ${C.blue}`:"2px solid transparent", color:tab===id?C.blue:C.muted, padding:"10px 16px", cursor:"pointer", fontSize:14, fontWeight:tab===id?600:400, marginBottom:-1, fontFamily:FONT }}>{label}</button>
           ))}
         </div>
 
         {tab==="schulungen"&&<>
-          <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
+          <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
             {["alle","Freigegeben","Entwurf","Pflicht","Versendet"].map(f=>(
-              <button key={f} onClick={()=>setFilter(f)} style={{ background:filter===f?C.blue:C.blueDim, color:filter===f?C.white:C.blue, border:`1px solid ${filter===f?C.blue:C.blueBorder}`, padding:"6px 14px", borderRadius:999, cursor:"pointer", fontSize:12, fontWeight:700 }}>{f}</button>
+              <button key={f} onClick={()=>setFilter(f)} style={{ background:filter===f?C.blue:"transparent", color:filter===f?C.white:C.muted, border:`1px solid ${filter===f?C.blue:C.border}`, padding:"5px 13px", borderRadius:999, cursor:"pointer", fontSize:13, fontWeight:filter===f?600:400, fontFamily:FONT }}>{f}</button>
             ))}
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Titel oder Dok.-Nr. suchen…" style={{ ...css.inp, flex:1, minWidth:160, padding:"7px 13px" }} />
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Titel oder Dok.-Nr. suchen…" style={{ ...css.inp, flex:1, minWidth:160, padding:"7px 12px", fontSize:13 }} />
           </div>
           {schulungenLoading&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Schulungen werden geladen…</p>}
           {!schulungenLoading&&filtered.length===0&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Keine Schulungen gefunden.</p>}
           {filtered.map(sc=>{
             const nwCount=Object.keys(sc.nachweise||{}).length; const sent=sc.empfaenger?.length||0;
-            return <div key={sc.id} style={{ ...css.section, cursor:"pointer" }} onClick={()=>{setActive(sc);setModal("player");}}>
+            const statusStyle = sc.status==="Freigegeben"
+              ? { background:C.good.bg, color:C.good.text }
+              : sc.status==="Entwurf"
+              ? { background:"#F3F4F6", color:"#374151" }
+              : { background:C.warn.bg, color:C.warn.text };
+            return <div key={sc.id}
+              style={{ ...css.section, cursor:"pointer", padding:20, transition:"box-shadow .15s, border-color .15s" }}
+              onClick={()=>{setActive(sc);setModal("player");}}
+              onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.08)";e.currentTarget.style.borderColor="#C5CDD8";}}
+              onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.borderColor=C.border;}}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
                 <div style={{ flex:1 }}>
-                  <div style={{ display:"flex", gap:7, marginBottom:7, flexWrap:"wrap", alignItems:"center" }}>
-                    <span style={css.badge}>{sc.kategorie}</span>
-                    <span style={{ ...css.badge, background:sc.status==="Freigegeben"?C.good.bg:C.warn.bg, color:sc.status==="Freigegeben"?C.good.text:C.warn.text }}>{sc.status}</span>
-                    {sc.pflicht&&<span style={{ ...css.badge, background:C.bad.bg, color:C.bad.text }}>Pflicht</span>}
-                    {sent>0&&<span style={{ fontSize:12, color:C.blue }}>✓ {sent} Empf. · {nwCount}/{sent} Nachweise</span>}
+                  <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
+                    <span style={{ ...css.badge }}>{sc.kategorie}</span>
+                    <span style={{ ...css.badge, ...statusStyle }}>{sc.status}</span>
+                    {sc.pflicht&&<span style={{ ...css.badge, background:C.warn.bg, color:C.warn.text }}>Pflicht</span>}
                   </div>
-                  <h3 style={{ margin:"0 0 3px", fontSize:16 }}>{sc.titel}</h3>
-                  <p style={{ margin:0, fontSize:12, color:C.muted }}>{sc.dokNr} · Version {sc.version} · Gültig ab {sc.gueltigAb}</p>
+                  <h3 style={{ margin:"0 0 4px", fontSize:18, fontWeight:600, color:C.text }}>{sc.titel}</h3>
+                  <p style={{ margin:0, fontSize:13, color:C.muted }}>{sc.dokNr} · v{sc.version} · {sc.gueltigAb}{sent>0?` · ${sent} Empf. · ${nwCount}/${sent} Nachweise`:""}</p>
                 </div>
-                <div style={{ display:"flex", gap:8 }} onClick={e=>e.stopPropagation()}>
-                  {isAdmin&&<button onClick={()=>{setActive(sc);setModal("edit");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>✏️</button>}
-                  {isAdmin&&sent>0&&<button onClick={()=>{setActive(sc);setModal("nw");}} style={{ ...css.btnSec, padding:"7px 13px", fontSize:13 }}>📄</button>}
-                  {isAdmin&&sc.status==="Freigegeben"&&<button onClick={()=>{setActive(sc);setModal("send");}} style={{ ...css.btn, padding:"7px 13px", fontSize:13 }}>📤 Senden</button>}
+                <div style={{ display:"flex", gap:7 }} onClick={e=>e.stopPropagation()}>
+                  {isAdmin&&<button onClick={()=>{setActive(sc);setModal("edit");}} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>Bearbeiten</button>}
+                  {isAdmin&&sent>0&&<button onClick={()=>{setActive(sc);setModal("nw");}} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>Nachweise</button>}
+                  {isAdmin&&sc.status==="Freigegeben"&&<button onClick={()=>{setActive(sc);setModal("send");}} style={{ ...css.btn, padding:"6px 12px", fontSize:13 }}>✉ Senden</button>}
                 </div>
               </div>
             </div>;
@@ -1074,7 +1086,7 @@ export default function App() {
       {modal==="nw"&&active&&<Modal onClose={()=>setModal(null)} wide><NachweisModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
 
       {toast&&<div style={{ position:"fixed",bottom:22,right:22,background:toast.type==="warn"?C.warn.bg:C.good.bg,border:`1px solid ${toast.type==="warn"?C.warn.border:C.good.border}`,color:toast.type==="warn"?C.warn.text:C.good.text,padding:"12px 20px",borderRadius:12,fontSize:14,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.12)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}>{toast.msg}</div>}
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} *{box-sizing:border-box} select option{background:#fff;color:#172033} button:hover{filter:brightness(.95)}`}</style>
+      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} *{box-sizing:border-box} body{font-family:'Inter',-apple-system,sans-serif} select option{background:#fff;color:#1A202C} button:hover{filter:brightness(.96)} input:focus,textarea:focus,select:focus{border-color:#1E3A6E!important;outline:none!important;}`}</style>
     </div>
   );
 }
