@@ -1041,7 +1041,7 @@ export default function App() {
             )}
             {!isAdmin && user && <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{user.email}</span>}
             {user && <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"7px 13px" }}>Excel-Export</button>}
-            {isAdmin&&tab==="schulungen"&&<button onClick={()=>{setActive(null);setModal("neu");}} style={{ ...css.btn, fontSize:13, padding:"7px 14px" }}>+ Neue Schulung</button>}
+            {isAdmin&&<button onClick={()=>{setActive(null);setModal("neu");setTab("schulungen");}} style={{ ...css.btn, fontSize:13, padding:"7px 14px" }}>+ Neue Schulung</button>}
             <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"6px 12px" }}>Abmelden</button>
           </div>
         </div>
