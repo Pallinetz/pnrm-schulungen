@@ -634,9 +634,9 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
       });
       if (res.error) throw new Error(res.data?.error || res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      setResult(`Einladung an ${form.email} gesendet.`);
+      setResult({ email: form.email, inviteUrl: res.data?.inviteUrl || null });
       if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, team: form.team, berufsrolle: form.berufsrolle, id: `sent_${Date.now()}`, bestaetigt: false });
-      showToast(`Einladung an ${form.email} gesendet.`);
+      showToast(`Konto für ${form.email} angelegt.`);
     } catch (e) {
       setResult(`Fehler: ${e.message}`);
     }
@@ -647,7 +647,20 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
     <div style={{ fontFamily:FONT, color:C.text }}>
       <h2 style={{ margin:"0 0 18px", fontSize:20 }}>Mitarbeiter einladen</h2>
       {result
-        ? <div style={css.good}>{result}</div>
+        ? <div style={{ ...css.good, display:"flex", flexDirection:"column", gap:10 }}>
+          <div>✓ Konto für <strong>{result.email}</strong> angelegt.</div>
+          {result.inviteUrl
+            ? <>
+                <div style={{ fontSize:13, color:C.muted }}>E-Mail-Versand noch nicht aktiv — bitte diesen Link per <strong>Teams</strong> an die Person schicken:</div>
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <input readOnly value={result.inviteUrl} style={{ ...css.inp, fontSize:12, flex:1, background:"#f8fafc" }} onClick={e=>e.target.select()} />
+                  <button onClick={()=>{ navigator.clipboard.writeText(result.inviteUrl); showToast("Link kopiert."); }} style={{ ...css.btn, padding:"8px 14px", fontSize:13, whiteSpace:"nowrap" }}>Kopieren</button>
+                </div>
+                <div style={{ fontSize:12, color:C.warn.text, background:C.warn.bg, border:`1px solid ${C.warn.border}`, borderRadius:8, padding:"8px 12px" }}>⏰ Der Link ist 24 Stunden gültig.</div>
+              </>
+            : null
+          }
+        </div>
         : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} placeholder="Vor- und Nachname" /></div>
             <div><label style={css.lbl}>E-Mail</label><input type="email" value={form.email} onChange={e=>set("email",e.target.value)} style={css.inp} placeholder="email@pallinetz.de" /></div>
