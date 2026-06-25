@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { email, name, rolle } = await req.json()
+    const { email, name, rolle, team, berufsrolle } = await req.json()
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -74,7 +74,9 @@ serve(async (req) => {
       await supabaseAdmin.from("mitarbeiter").insert({
         email,
         name: name || email,
-        rolle: rolle || "Pflegefachkraft",
+        rolle: rolle || "user",
+        team: team || "PNRM",
+        berufsrolle: berufsrolle || "Pflegefachkraft",
       })
     }
 

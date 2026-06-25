@@ -628,7 +628,7 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("send-invitation-email", {
+      const res = await supabase.functions.invoke("invite-user", {
         body: { action:"invite_schulungen", email: form.email, name: form.name, rolle: form.rolle, team: form.team, berufsrolle: form.berufsrolle },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
@@ -698,7 +698,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
     setResending(email);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("send-invitation-email", {
+      const res = await supabase.functions.invoke("invite-user", {
         body: { action: "invite_schulungen", email, name, rolle },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
