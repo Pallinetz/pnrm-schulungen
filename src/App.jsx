@@ -618,7 +618,7 @@ Format:
 
 // ─── Mitarbeiterverwaltung ────────────────────────────────────────────────────
 function InviteModal({ onClose, showToast, onInviteSent }) {
-  const [form, setForm] = useState({ name:"", email:"", rolle:"user" });
+  const [form, setForm] = useState({ name:"", email:"", rolle:"user", team:"PNRM", berufsrolle:"Pflegefachkraft" });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -629,15 +629,14 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("send-invitation-email", {
-        body: { action:"invite_schulungen", email: form.email, name: form.name, rolle: form.rolle },
+        body: { action:"invite_schulungen", email: form.email, name: form.name, rolle: form.rolle, team: form.team, berufsrolle: form.berufsrolle },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       setResult(`Einladung an ${form.email} gesendet.`);
-      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
+      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, team: form.team, berufsrolle: form.berufsrolle, id: `sent_${Date.now()}`, bestaetigt: false });
       showToast(`Einladung an ${form.email} gesendet.`);
-      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
     } catch (e) {
       setResult(`Fehler: ${e.message}`);
     }
@@ -652,6 +651,8 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
         : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} placeholder="Vor- und Nachname" /></div>
             <div><label style={css.lbl}>E-Mail</label><input type="email" value={form.email} onChange={e=>set("email",e.target.value)} style={css.inp} placeholder="email@pallinetz.de" /></div>
+            <div><label style={css.lbl}>Team</label><select value={form.team} onChange={e=>set("team",e.target.value)} style={css.inp}><option value="PNRM">PNRM</option><option value="Caritas">Caritas</option></select></div>
+            <div><label style={css.lbl}>Berufsrolle</label><select value={form.berufsrolle} onChange={e=>set("berufsrolle",e.target.value)} style={css.inp}>{ROLLEN.map(r=><option key={r}>{r}</option>)}</select></div>
             <div><label style={css.lbl}>Zugriff</label><select value={form.rolle} onChange={e=>set("rolle",e.target.value)} style={css.inp}><option value="user">Nutzer – nur Schulungen ansehen</option><option value="admin">Admin – Schulungen verwalten & Mitarbeiter einladen</option></select></div>
           </div>
       }
@@ -744,7 +745,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{m.name}</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{m.email}</div>
-                  <div style={{ fontSize: 11, marginTop: 4, display: "flex", gap: 8, alignItems: "center" }}>
+                  <div style={{ fontSize: 11, marginTop: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{
                       background: m.rolle === "admin" ? C.blueDim : "#f3f4f6",
                       color: m.rolle === "admin" ? C.blue : "#6b7280",
@@ -754,6 +755,12 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
                     }}>
                       {m.rolle === "admin" ? "Admin" : "Nutzer"}
                     </span>
+                    {m.team && (
+                      <span style={{ background: m.team === "Caritas" ? "#FEF3E2" : C.blueDim, color: m.team === "Caritas" ? "#8B5E00" : C.navy, padding: "1px 7px", borderRadius: 20, fontWeight: 600 }}>
+                        {m.team}
+                      </span>
+                    )}
+                    {m.berufsrolle && <span style={{ color: C.muted }}>{m.berufsrolle}</span>}
                     {bestaetigt
                       ? <span style={{ color: C.muted }}>✓ Bestätigt</span>
                       : <span style={{ color: "#f59e0b", fontWeight: 600 }}>⏳ Einladung ausstehend</span>
@@ -1036,7 +1043,7 @@ function exportExcel(schulungen, ma) {
 export default function App() {
   const [schulungen, setSchulungen] = useState([]);
   const [schulungenLoading, setSchulungenLoading] = useState(false);
-  const [ma, setMa] = useState([]);
+  const [ma, setMa] = useState(SEED_MA);
   const [modal, setModal] = useState(null);
   const [active, setActive] = useState(null);
   const [tab, setTab] = useState("schulungen");
