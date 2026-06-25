@@ -109,21 +109,6 @@ function WissenVideoBlock({ datei }) {
   useEffect(() => {
     getSignedVideoUrl(datei.url).then(setSignedUrl).catch(console.error);
   }, [datei.url]);
-
-  // ─── Load Mitarbeiter von Supabase ──────────────────────────────────────
-  useEffect(() => {
-    const loadMa = async () => {
-      try {
-        const { data, error } = await supabase.from('mitarbeiter').select('*').order('name');
-        if (!error && data) {
-          setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
-        }
-      } catch (e) {
-        console.error('Fehler beim Laden von Mitarbeitern:', e);
-      }
-    };
-    if (user) loadMa();
-  }, [user]);
   return <VideoPlayer url={signedUrl} titel={datei.name} />;
 }
 
@@ -815,7 +800,6 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
             showToast={showToast}
             onInviteSent={(m) => {
               setMa(list => [...list, m]);
-              setInviteOpen(false);
             }}
           />
         </Modal>
@@ -1092,6 +1076,15 @@ export default function App() {
     supabase.from("schulungen").select("*").order("created_at", { ascending: false }).then(({ data, error }) => {
       if (!error && data) setSchulungen(data);
       setSchulungenLoading(false);
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("mitarbeiter").select("*").order("name").then(({ data, error }) => {
+      if (!error && data && data.length > 0) {
+        setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
+      }
     });
   }, [user]);
 
