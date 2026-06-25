@@ -6,64 +6,52 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
+const ok  = (data: unknown) => new Response(JSON.stringify(data),        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+const err = (msg: string)   => new Response(JSON.stringify({ error: msg }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
   }
 
   try {
-    const { email, name, rolle, team, berufsrolle } = await req.json()
+    const body = await req.json()
+    const { email, name, rolle, team, berufsrolle } = body
+
+    if (!email) return err("E-Mail fehlt")
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     )
 
-    // Anfragenden User prüfen
+    // Auth-Token prüfen
     const authHeader = req.headers.get("Authorization")
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Nicht autorisiert" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
-    }
+    if (!authHeader) return err("Nicht autorisiert – kein Token")
 
     const token = authHeader.replace("Bearer ", "")
     const { data: { user: requestingUser }, error: authError } = await supabaseAdmin.auth.getUser(token)
-    if (authError || !requestingUser) {
-      return new Response(JSON.stringify({ error: "Ungültiger Token" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
-    }
+    if (authError || !requestingUser) return err("Ungültiger Token: " + (authError?.message ?? ""))
 
     // Admin-Check
-    const { data: mitarbeiter } = await supabaseAdmin
-      .from("mitarbeiter")
-      .select("rolle")
-      .eq("email", requestingUser.email)
-      .single()
+    const { data: maDaten, error: maError } = await supabaseAdmin
+      .from("mitarbeiter").select("rolle").eq("email", requestingUser.email).single()
 
-    if (mitarbeiter?.rolle !== "admin") {
-      return new Response(JSON.stringify({ error: `Nur Admins können einladen (aktuell: ${mitarbeiter?.rolle ?? "kein Eintrag"})` }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
-    }
+    if (maError) return err("Admin-Check fehlgeschlagen: " + maError.message)
+    if (maDaten?.rolle !== "admin") return err(`Nur Admins können einladen (Rolle: ${maDaten?.rolle ?? "kein Eintrag"})`)
 
-    // Einladungslink generieren (kein automatischer E-Mail-Versand durch Supabase)
+    // Einladungslink generieren
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "invite",
       email,
       options: { redirectTo: "https://pnrm-schulungen.vercel.app" },
     })
-
-    if (linkError) {
-      return new Response(JSON.stringify({ error: linkError.message }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
-    }
+    if (linkError) return err("Link-Fehler: " + linkError.message)
 
     const inviteUrl = linkData.properties?.action_link
+    if (!inviteUrl) return err("Kein Einladungslink erhalten")
 
-    // E-Mail via Resend API senden
+    // E-Mail via Resend senden
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -83,34 +71,23 @@ serve(async (req) => {
             <div style="background:#F0F4F8;padding:32px;border-radius:0 0 8px 8px;border:1px solid #D1DCE8;border-top:none">
               <p style="margin:0 0 16px">Hallo ${name || email},</p>
               <p style="margin:0 0 16px">Sie wurden zur internen Schulungsplattform der PNRM eingeladen.</p>
-              <p style="margin:0 0 24px">Klicken Sie auf den Button, um Ihr Konto zu aktivieren und Zugang zu erhalten:</p>
+              <p style="margin:0 0 24px">Klicken Sie auf den Button, um Ihr Konto zu aktivieren:</p>
               <a href="${inviteUrl}" style="display:inline-block;background:#2E4B6E;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">Einladung annehmen</a>
-              <p style="margin:24px 0 0;font-size:12px;color:#5A6E85">Dieser Link ist 24 Stunden gültig. Falls Sie diese Einladung nicht erwartet haben, können Sie diese E-Mail ignorieren.</p>
+              <p style="margin:24px 0 0;font-size:12px;color:#5A6E85">Dieser Link ist 24 Stunden gültig.</p>
             </div>
-          </div>
-        `,
+          </div>`,
       }),
     })
 
-    if (!resendRes.ok) {
-      const resendErr = await resendRes.json()
-      return new Response(JSON.stringify({ error: `E-Mail-Fehler: ${resendErr.message}` }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
-    }
+    const resendBody = await resendRes.json()
+    if (!resendRes.ok) return err("Resend-Fehler: " + (resendBody.message ?? resendBody.name ?? JSON.stringify(resendBody)))
 
     // Mitarbeiter-Eintrag anlegen / aktualisieren
-    const record: Record<string, string> = {
-      email,
-      name: name || email,
-      rolle: rolle || "user",
-    }
+    const record: Record<string, string> = { email, name: name || email, rolle: rolle || "user" }
     if (team) record.team = team
     if (berufsrolle) record.berufsrolle = berufsrolle
 
-    const { data: existing } = await supabaseAdmin
-      .from("mitarbeiter").select("id").eq("email", email).single()
-
+    const { data: existing } = await supabaseAdmin.from("mitarbeiter").select("id").eq("email", email).single()
     if (!existing) {
       const { error: insertError } = await supabaseAdmin.from("mitarbeiter").insert(record)
       if (insertError) console.error("Insert-Warnung:", insertError.message)
@@ -118,13 +95,9 @@ serve(async (req) => {
       await supabaseAdmin.from("mitarbeiter").update(record).eq("email", email)
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
+    return ok({ success: true })
 
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
+  } catch (e) {
+    return err("Unbekannter Fehler: " + e.message)
   }
 })
