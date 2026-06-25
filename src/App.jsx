@@ -662,9 +662,31 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
   );
 }
 
+function EditMaModal({ m, onSave, onClose }) {
+  const [form, setForm] = useState({ name: m.name||"", team: m.team||"PNRM", berufsrolle: m.berufsrolle||"", rolle: m.rolle||"user" });
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  return (
+    <div style={{ fontFamily:FONT, color:C.text }}>
+      <h2 style={{ margin:"0 0 18px", fontSize:20 }}>Mitarbeiter bearbeiten</h2>
+      <div style={{ fontSize:13, color:C.muted, marginBottom:14 }}>{m.email}</div>
+      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+        <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} /></div>
+        <div><label style={css.lbl}>Team</label><select value={form.team} onChange={e=>set("team",e.target.value)} style={css.inp}><option value="PNRM">PNRM</option><option value="Caritas">Caritas</option></select></div>
+        <div><label style={css.lbl}>Berufsrolle</label><select value={form.berufsrolle} onChange={e=>set("berufsrolle",e.target.value)} style={css.inp}>{ROLLEN.map(r=><option key={r}>{r}</option>)}</select></div>
+        <div><label style={css.lbl}>Zugriff</label><select value={form.rolle} onChange={e=>set("rolle",e.target.value)} style={css.inp}><option value="user">Nutzer</option><option value="admin">Admin</option></select></div>
+      </div>
+      <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:18 }}>
+        <button onClick={onClose} style={css.btnSec}>Abbrechen</button>
+        <button onClick={()=>onSave({...m,...form})} disabled={!form.name} style={{ ...css.btn, opacity:form.name?1:0.65 }}>Speichern</button>
+      </div>
+    </div>
+  );
+}
+
 function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
   const [loading, setLoading] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [editMa, setEditMa] = useState(null);
   const [resending, setResending] = useState(null);
   const fileRef = useRef();
 
@@ -707,6 +729,15 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
       showToast(`Fehler: ${e.message}`);
     }
     setResending(null);
+  };
+
+  const saveMa = async (updated) => {
+    setMa(list => list.map(x => (x.id === updated.id || x.email === updated.email) ? updated : x));
+    await supabase.from("mitarbeiter").update({
+      name: updated.name, team: updated.team, berufsrolle: updated.berufsrolle, rolle: updated.rolle,
+    }).eq("email", updated.email);
+    setEditMa(null);
+    showToast(`${updated.name} gespeichert.`);
   };
 
   const deleteUser = async (id, email) => {
@@ -780,6 +811,11 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
                       {resending === m.email ? "Wird gesendet…" : "Erneut senden"}
                     </button>
                   )}
+                  {isAdmin && (
+                    <button onClick={() => setEditMa(m)} style={{ ...css.btnSec, padding: "5px 11px", fontSize: 12 }}>
+                      Bearbeiten
+                    </button>
+                  )}
                   <button
                     onClick={() => deleteUser(m.id, m.email)}
                     style={{ ...css.btnDanger, padding: "5px 11px" }}
@@ -802,6 +838,12 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
               setMa(list => [...list, m]);
             }}
           />
+        </Modal>
+      )}
+
+      {editMa && (
+        <Modal onClose={() => setEditMa(null)}>
+          <EditMaModal m={editMa} onSave={saveMa} onClose={() => setEditMa(null)} />
         </Modal>
       )}
 
