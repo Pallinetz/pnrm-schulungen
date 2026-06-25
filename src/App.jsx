@@ -603,7 +603,7 @@ Format:
 
 // ─── Mitarbeiterverwaltung ────────────────────────────────────────────────────
 function InviteModal({ onClose, showToast }) {
-  const [form, setForm] = useState({ name:"", email:"", rolle:ROLLEN[0] });
+  const [form, setForm] = useState({ name:"", email:"", rolle:"user" });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -612,10 +612,13 @@ function InviteModal({ onClose, showToast }) {
     if (!form.email.trim() || !form.name.trim()) return;
     setLoading(true);
     try {
-      const { error } = await supabase.functions.invoke("invite-user", {
-        body: { email: form.email, name: form.name, rolle: form.rolle },
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("send-invitation-email", {
+        body: { action:"invite_schulungen", email: form.email, name: form.name, rolle: form.rolle },
+        headers: { Authorization: `Bearer ${session.access_token}` }
       });
-      if (error) throw error;
+      if (res.error) throw new Error(res.error.message);
+      if (res.data?.error) throw new Error(res.data.error);
       setResult(`Einladung an ${form.email} gesendet.`);
       showToast(`Einladung an ${form.email} gesendet.`);
     } catch (e) {
@@ -632,7 +635,7 @@ function InviteModal({ onClose, showToast }) {
         : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} placeholder="Vor- und Nachname" /></div>
             <div><label style={css.lbl}>E-Mail</label><input type="email" value={form.email} onChange={e=>set("email",e.target.value)} style={css.inp} placeholder="email@pallinetz.de" /></div>
-            <div><label style={css.lbl}>Rolle</label><select value={form.rolle} onChange={e=>set("rolle",e.target.value)} style={css.inp}>{ROLLEN.map(r=><option key={r}>{r}</option>)}</select></div>
+            <div><label style={css.lbl}>Zugriff</label><select value={form.rolle} onChange={e=>set("rolle",e.target.value)} style={css.inp}><option value="user">Nutzer – nur Schulungen ansehen</option><option value="admin">Admin – Schulungen verwalten & Mitarbeiter einladen</option></select></div>
           </div>
       }
       <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:18 }}>
