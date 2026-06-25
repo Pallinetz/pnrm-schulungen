@@ -632,7 +632,7 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
         body: { action:"invite_schulungen", email: form.email, name: form.name, rolle: form.rolle, team: form.team, berufsrolle: form.berufsrolle },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) throw new Error(res.data?.error || res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       setResult(`Einladung an ${form.email} gesendet.`);
       if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, team: form.team, berufsrolle: form.berufsrolle, id: `sent_${Date.now()}`, bestaetigt: false });
@@ -702,7 +702,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
         body: { action: "invite_schulungen", email, name, rolle },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) throw new Error(res.data?.error || res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       showToast(`Einladung an ${email} erneut gesendet.`);
     } catch (e) {

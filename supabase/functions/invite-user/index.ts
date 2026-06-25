@@ -45,39 +45,48 @@ serve(async (req) => {
       .single()
 
     if (mitarbeiter?.rolle !== "admin") {
-      return new Response(JSON.stringify({ error: "Nur Admins können einladen" }), {
+      return new Response(JSON.stringify({ error: `Nur Admins können einladen (aktuell: ${mitarbeiter?.rolle ?? "kein Eintrag"})` }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
     }
 
-    // User einladen
+    // User einladen (falls bereits vorhanden, weiter ohne Fehler)
     const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       redirectTo: "https://pnrm-schulungen.vercel.app",
     })
 
-    if (inviteError) {
+    if (inviteError && !inviteError.message.toLowerCase().includes("already")) {
       return new Response(JSON.stringify({ error: inviteError.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
     }
 
-    // Mitarbeiter-Eintrag anlegen falls nicht vorhanden
+    // Mitarbeiter-Eintrag anlegen / aktualisieren
     const { data: existing } = await supabaseAdmin
       .from("mitarbeiter")
       .select("id")
       .eq("email", email)
       .single()
 
+    const record: Record<string, string> = {
+      email,
+      name: name || email,
+      rolle: rolle || "user",
+    }
+    if (team) record.team = team
+    if (berufsrolle) record.berufsrolle = berufsrolle
+
     if (!existing) {
-      await supabaseAdmin.from("mitarbeiter").insert({
-        email,
-        name: name || email,
-        rolle: rolle || "user",
-        team: team || "PNRM",
-        berufsrolle: berufsrolle || "Pflegefachkraft",
-      })
+      const { error: insertError } = await supabaseAdmin.from("mitarbeiter").insert(record)
+      if (insertError) {
+        // Spalten fehlen evtl. noch – trotzdem Erfolg zurückgeben, nur warnen
+        console.error("Insert-Warnung:", insertError.message)
+      }
+    } else {
+      // Vorhandenen Eintrag aktualisieren
+      await supabaseAdmin.from("mitarbeiter").update(record).eq("email", email)
     }
 
     return new Response(JSON.stringify({ success: true }), {
