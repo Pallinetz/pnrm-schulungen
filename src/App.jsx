@@ -109,6 +109,21 @@ function WissenVideoBlock({ datei }) {
   useEffect(() => {
     getSignedVideoUrl(datei.url).then(setSignedUrl).catch(console.error);
   }, [datei.url]);
+
+  // ─── Load Mitarbeiter von Supabase ──────────────────────────────────────
+  useEffect(() => {
+    const loadMa = async () => {
+      try {
+        const { data, error } = await supabase.from('mitarbeiter').select('*').order('name');
+        if (!error && data) {
+          setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
+        }
+      } catch (e) {
+        console.error('Fehler beim Laden von Mitarbeitern:', e);
+      }
+    };
+    if (user) loadMa();
+  }, [user]);
   return <VideoPlayer url={signedUrl} titel={datei.name} />;
 }
 
@@ -602,7 +617,7 @@ Format:
 }
 
 // ─── Mitarbeiterverwaltung ────────────────────────────────────────────────────
-function InviteModal({ onClose, showToast }) {
+function InviteModal({ onClose, showToast, onInviteSent }) {
   const [form, setForm] = useState({ name:"", email:"", rolle:"user" });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -620,7 +635,9 @@ function InviteModal({ onClose, showToast }) {
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       setResult(`Einladung an ${form.email} gesendet.`);
+      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
       showToast(`Einladung an ${form.email} gesendet.`);
+      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
     } catch (e) {
       setResult(`Fehler: ${e.message}`);
     }
@@ -646,67 +663,150 @@ function InviteModal({ onClose, showToast }) {
   );
 }
 
-function MitarbeiterView({ ma, setMa, showToast, isAdmin }) {
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({});
+function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
+  const [loading, setLoading] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [resending, setResending] = useState(null);
   const fileRef = useRef();
-  const set = (k,v) => setForm(f=>({...f,[k]:v}));
-  const save = () => { if(!form.name.trim())return; editing==="neu"?setMa(m=>[...m,form]):setMa(m=>m.map(x=>x.id===editing?form:x)); setEditing(null); showToast(editing==="neu"?"Hinzugefügt.":"Gespeichert."); };
+
   const importCSV = e => {
-    const file=e.target.files[0]; if(!file)return;
-    const r=new FileReader();
-    r.onload=ev=>{ const wb=XLSX.read(ev.target.result,{type:"binary"}); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); const imp=rows.map((r,i)=>({id:`imp_${Date.now()}_${i}`,name:r.Name||r.name||"",rolle:r.Rolle||r.rolle||"Pflegefachkraft",team:r.Team||r.team||"PNRM",email:r.Email||r.email||""})).filter(m=>m.name); setMa(m=>{ const ex=new Set(m.map(x=>x.name.toLowerCase())); const news=imp.filter(x=>!ex.has(x.name.toLowerCase())); showToast(`${news.length} neue importiert.`); return [...m,...news]; }); };
-    r.readAsBinaryString(file); e.target.value="";
+    const file = e.target.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      const wb = XLSX.read(ev.target.result, { type: "binary" });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      const imp = rows.map((r, i) => ({
+        id: `imp_${Date.now()}_${i}`,
+        name: r.Name || r.name || "",
+        email: r.Email || r.email || "",
+        rolle: "user",
+      })).filter(m => m.name && m.email);
+      setMa(m => {
+        const ex = new Set(m.map(x => x.email.toLowerCase()));
+        const news = imp.filter(x => !ex.has(x.email.toLowerCase()));
+        showToast(`${news.length} neue importiert.`);
+        return [...m, ...news];
+      });
+    };
+    r.readAsBinaryString(file);
+    e.target.value = "";
   };
+
+  const resendInvite = async (email, name, rolle) => {
+    setResending(email);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("send-invitation-email", {
+        body: { action: "invite_schulungen", email, name, rolle },
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (res.data?.error) throw new Error(res.data.error);
+      showToast(`Einladung an ${email} erneut gesendet.`);
+    } catch (e) {
+      showToast(`Fehler: ${e.message}`);
+    }
+    setResending(null);
+  };
+
+  const deleteUser = async (id, email) => {
+    setMa(m => m.filter(x => x.id !== id));
+    showToast(`${email} entfernt.`);
+  };
+
   return (
-    <div style={{ fontFamily:FONT }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
-        <h2 style={{ margin:0, fontSize:20 }}>👥 Mitarbeiter</h2>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={()=>fileRef.current.click()} style={{ ...css.btnSec, fontSize:13, padding:"8px 13px" }}>📥 Import</button>
-          <input ref={fileRef} type="file" accept=".xlsx,.csv" onChange={importCSV} style={{ display:"none" }} />
-          <button onClick={()=>{ setEditing("neu"); setForm({id:`k${Date.now()}`,name:"",rolle:ROLLEN[0],team:"PNRM",email:""}); }} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Neu</button>
-          {isAdmin && <button onClick={()=>setInviteOpen(true)} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Einladen</button>}
+    <div style={{ fontFamily: FONT }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+        <h2 style={{ margin: 0, fontSize: 20 }}>👥 Mitarbeiter</h2>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => fileRef.current.click()} style={{ ...css.btnSec, fontSize: 13, padding: "8px 13px" }}>📥 Import CSV</button>
+          <input ref={fileRef} type="file" accept=".xlsx,.csv" onChange={importCSV} style={{ display: "none" }} />
+          {isAdmin && <button onClick={() => setInviteOpen(true)} style={{ ...css.btn, fontSize: 13, padding: "8px 14px" }}>+ Mitarbeiter einladen</button>}
         </div>
       </div>
-      {editing && (
-        <div style={{ ...css.section, marginBottom:18 }}>
-          <h3 style={{ margin:"0 0 14px", fontSize:16 }}>{editing==="neu"?"Neue Person":"Bearbeiten"}</h3>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            {[["name","Name"],["email","E-Mail"]].map(([k,l])=><div key={k}><label style={css.lbl}>{l}</label><input value={form[k]||""} onChange={e=>set(k,e.target.value)} style={css.inp} /></div>)}
-            <div><label style={css.lbl}>Rolle</label><select value={form.rolle||""} onChange={e=>set("rolle",e.target.value)} style={css.inp}>{ROLLEN.map(r=><option key={r}>{r}</option>)}</select></div>
-            <div><label style={css.lbl}>Team</label><select value={form.team||"PNRM"} onChange={e=>set("team",e.target.value)} style={css.inp}><option>PNRM</option><option>Caritas</option></select></div>
-          </div>
-          <div style={{ display:"flex", gap:8, marginTop:10 }}>
-            <button onClick={()=>setEditing(null)} style={css.btnSec}>Abbrechen</button>
-            <button onClick={save} style={css.btn}>Speichern</button>
-          </div>
+
+      {ma.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "2rem", color: C.muted }}>Noch keine Mitarbeiter. Laden Sie welche ein!</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {ma.map(m => {
+            const bestaetigt = m.bestaetigt || false;
+            return (
+              <div key={m.email || m.id} style={{
+                ...css.section,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "12px 14px",
+                borderLeft: `4px solid ${bestaetigt ? C.blue : "#fbbf24"}`,
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{m.name}</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{m.email}</div>
+                  <div style={{ fontSize: 11, marginTop: 4, display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{
+                      background: m.rolle === "admin" ? C.blueDim : "#f3f4f6",
+                      color: m.rolle === "admin" ? C.blue : "#6b7280",
+                      padding: "1px 7px",
+                      borderRadius: 20,
+                      fontWeight: 700,
+                    }}>
+                      {m.rolle === "admin" ? "Admin" : "Nutzer"}
+                    </span>
+                    {bestaetigt
+                      ? <span style={{ color: C.muted }}>✓ Bestätigt</span>
+                      : <span style={{ color: "#f59e0b", fontWeight: 600 }}>⏳ Einladung ausstehend</span>
+                    }
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {!bestaetigt && (
+                    <button
+                      onClick={() => resendInvite(m.email, m.name, m.rolle)}
+                      disabled={resending === m.email}
+                      style={{
+                        ...css.btnSec,
+                        padding: "5px 11px",
+                        fontSize: 12,
+                        opacity: resending === m.email ? 0.65 : 1,
+                      }}
+                    >
+                      {resending === m.email ? "Wird gesendet…" : "Erneut senden"}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deleteUser(m.id, m.email)}
+                    style={{ ...css.btnDanger, padding: "5px 11px" }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
-      {["PNRM","Caritas"].map(team=>(
-        <div key={team}>
-          <div style={{ fontSize:12, fontWeight:700, color:C.muted, letterSpacing:1, textTransform:"uppercase", margin:"14px 0 6px" }}>{team} · {ma.filter(m=>m.team===team).length} Personen</div>
-          {ma.filter(m=>m.team===team).map(m=>(
-            <div key={m.id} style={{ ...css.section, display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, padding:"11px 16px" }}>
-              <div><strong>{m.name}</strong><span style={{ color:C.muted, fontSize:13, marginLeft:12 }}>{m.rolle}</span>{m.email&&<span style={{ color:C.muted, fontSize:12, marginLeft:12 }}>· {m.email}</span>}</div>
-              <div style={{ display:"flex", gap:6 }}>
-                <button onClick={()=>{ setEditing(m.id); setForm({...m}); }} style={{ ...css.btnSec, padding:"5px 11px", fontSize:12 }}>✏️</button>
-                <button onClick={()=>{ setMa(x=>x.filter(y=>y.id!==m.id)); showToast("Gelöscht."); }} style={{ ...css.btnDanger, padding:"5px 11px" }}>✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ))}
-      <div style={{ marginTop:14, padding:"10px 14px", background:"#fbfcff", border:`1px solid ${C.border}`, borderRadius:10, fontSize:12, color:C.muted }}>
-        CSV/Excel-Format: Spalten <strong style={{ color:C.text }}>Name, Rolle, Team, Email</strong>
+
+      {inviteOpen && (
+        <Modal onClose={() => setInviteOpen(false)}>
+          <InviteModal
+            onClose={() => setInviteOpen(false)}
+            showToast={showToast}
+            onInviteSent={(m) => {
+              setMa(list => [...list, m]);
+              setInviteOpen(false);
+            }}
+          />
+        </Modal>
+      )}
+
+      <div style={{ marginTop: 14, padding: "10px 14px", background: "#fbfcff", border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.muted }}>
+        CSV-Format: Spalten <strong style={{ color: C.text }}>Name, Email</strong>
       </div>
-      {inviteOpen && <Modal onClose={()=>setInviteOpen(false)}><InviteModal onClose={()=>setInviteOpen(false)} showToast={showToast} /></Modal>}
     </div>
   );
 }
-
-// ─── Versenden ────────────────────────────────────────────────────────────────
 function SendModal({ sc, ma, onClose, onSend }) {
   const [sel, setSel] = useState(new Set(sc.empfaenger||[]));
   const [msg, setMsg] = useState(`Liebe Kolleginnen und Kollegen,\n\nbitte bearbeitet die Selbstlern-Unterweisung „${sc.titel}"${sc.pflicht?" (Pflichtschulung)":""}.\n\nNach Abschluss bitte den digitalen Nachweis absenden.\n\nViele Grüße`);
@@ -936,7 +1036,7 @@ function exportExcel(schulungen, ma) {
 export default function App() {
   const [schulungen, setSchulungen] = useState([]);
   const [schulungenLoading, setSchulungenLoading] = useState(false);
-  const [ma, setMa] = useState(SEED_MA);
+  const [ma, setMa] = useState([]);
   const [modal, setModal] = useState(null);
   const [active, setActive] = useState(null);
   const [tab, setTab] = useState("schulungen");
@@ -1109,7 +1209,7 @@ export default function App() {
           })}
         </>}
         {tab==="wissen"&&<WissenView isAdmin={isAdmin} showToast={showToast} />}
-        {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} />}
+        {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} user={user} />}
       </div>
 
       {(modal==="neu"||modal==="edit")&&<Modal onClose={()=>setModal(null)} wide><SchulungForm schulung={modal==="edit"?active:null} onSave={saveSchul} onClose={()=>setModal(null)} isAdmin={isAdmin} /></Modal>}
