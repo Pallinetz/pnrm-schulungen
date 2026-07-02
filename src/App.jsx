@@ -109,6 +109,21 @@ function WissenVideoBlock({ datei }) {
   useEffect(() => {
     getSignedVideoUrl(datei.url).then(setSignedUrl).catch(console.error);
   }, [datei.url]);
+
+  // ─── Load Mitarbeiter von Supabase ──────────────────────────────────────
+  useEffect(() => {
+    const loadMa = async () => {
+      try {
+        const { data, error } = await supabase.from('mitarbeiter').select('*').order('name');
+        if (!error && data) {
+          setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
+        }
+      } catch (e) {
+        console.error('Fehler beim Laden von Mitarbeitern:', e);
+      }
+    };
+    if (user) loadMa();
+  }, [user]);
   return <VideoPlayer url={signedUrl} titel={datei.name} />;
 }
 
@@ -603,7 +618,7 @@ Format:
 
 // ─── Mitarbeiterverwaltung ────────────────────────────────────────────────────
 function InviteModal({ onClose, showToast, onInviteSent }) {
-  const [form, setForm] = useState({ name:"", email:"", rolle:"user", team:"PNRM", berufsrolle:"Pflegefachkraft" });
+  const [form, setForm] = useState({ name:"", email:"", rolle:"user" });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -613,15 +628,16 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("invite-user", {
-        body: { action:"invite_schulungen", email: form.email, name: form.name, rolle: form.rolle, team: form.team, berufsrolle: form.berufsrolle },
+      const res = await supabase.functions.invoke("send-invitation-email", {
+        body: { action:"invite_schulungen", email: form.email, name: form.name, rolle: form.rolle },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
-      if (res.error) throw new Error(res.data?.error || res.error.message);
+      if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      setResult({ email: form.email, inviteUrl: res.data?.inviteUrl || null });
-      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, team: form.team, berufsrolle: form.berufsrolle, id: `sent_${Date.now()}`, bestaetigt: false });
-      showToast(`Konto für ${form.email} angelegt.`);
+      setResult(`Einladung an ${form.email} gesendet.`);
+      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
+      showToast(`Einladung an ${form.email} gesendet.`);
+      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
     } catch (e) {
       setResult(`Fehler: ${e.message}`);
     }
@@ -632,25 +648,10 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
     <div style={{ fontFamily:FONT, color:C.text }}>
       <h2 style={{ margin:"0 0 18px", fontSize:20 }}>Mitarbeiter einladen</h2>
       {result
-        ? <div style={{ ...css.good, display:"flex", flexDirection:"column", gap:10 }}>
-          <div>✓ Konto für <strong>{result.email}</strong> angelegt.</div>
-          {result.inviteUrl
-            ? <>
-                <div style={{ fontSize:13, color:C.muted }}>E-Mail-Versand noch nicht aktiv — bitte diesen Link per <strong>Teams</strong> an die Person schicken:</div>
-                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                  <input readOnly value={result.inviteUrl} style={{ ...css.inp, fontSize:12, flex:1, background:"#f8fafc" }} onClick={e=>e.target.select()} />
-                  <button onClick={()=>{ navigator.clipboard.writeText(result.inviteUrl); showToast("Link kopiert."); }} style={{ ...css.btn, padding:"8px 14px", fontSize:13, whiteSpace:"nowrap" }}>Kopieren</button>
-                </div>
-                <div style={{ fontSize:12, color:C.warn.text, background:C.warn.bg, border:`1px solid ${C.warn.border}`, borderRadius:8, padding:"8px 12px" }}>⏰ Der Link ist 24 Stunden gültig.</div>
-              </>
-            : null
-          }
-        </div>
+        ? <div style={css.good}>{result}</div>
         : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} placeholder="Vor- und Nachname" /></div>
             <div><label style={css.lbl}>E-Mail</label><input type="email" value={form.email} onChange={e=>set("email",e.target.value)} style={css.inp} placeholder="email@pallinetz.de" /></div>
-            <div><label style={css.lbl}>Team</label><select value={form.team} onChange={e=>set("team",e.target.value)} style={css.inp}><option value="PNRM">PNRM</option><option value="Caritas">Caritas</option></select></div>
-            <div><label style={css.lbl}>Berufsrolle</label><select value={form.berufsrolle} onChange={e=>set("berufsrolle",e.target.value)} style={css.inp}>{ROLLEN.map(r=><option key={r}>{r}</option>)}</select></div>
             <div><label style={css.lbl}>Zugriff</label><select value={form.rolle} onChange={e=>set("rolle",e.target.value)} style={css.inp}><option value="user">Nutzer – nur Schulungen ansehen</option><option value="admin">Admin – Schulungen verwalten & Mitarbeiter einladen</option></select></div>
           </div>
       }
@@ -662,31 +663,9 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
   );
 }
 
-function EditMaModal({ m, onSave, onClose }) {
-  const [form, setForm] = useState({ name: m.name||"", team: m.team||"PNRM", berufsrolle: m.berufsrolle||"", rolle: m.rolle||"user" });
-  const set = (k,v) => setForm(f=>({...f,[k]:v}));
-  return (
-    <div style={{ fontFamily:FONT, color:C.text }}>
-      <h2 style={{ margin:"0 0 18px", fontSize:20 }}>Mitarbeiter bearbeiten</h2>
-      <div style={{ fontSize:13, color:C.muted, marginBottom:14 }}>{m.email}</div>
-      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-        <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} /></div>
-        <div><label style={css.lbl}>Team</label><select value={form.team} onChange={e=>set("team",e.target.value)} style={css.inp}><option value="PNRM">PNRM</option><option value="Caritas">Caritas</option></select></div>
-        <div><label style={css.lbl}>Berufsrolle</label><select value={form.berufsrolle} onChange={e=>set("berufsrolle",e.target.value)} style={css.inp}>{ROLLEN.map(r=><option key={r}>{r}</option>)}</select></div>
-        <div><label style={css.lbl}>Zugriff</label><select value={form.rolle} onChange={e=>set("rolle",e.target.value)} style={css.inp}><option value="user">Nutzer</option><option value="admin">Admin</option></select></div>
-      </div>
-      <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:18 }}>
-        <button onClick={onClose} style={css.btnSec}>Abbrechen</button>
-        <button onClick={()=>onSave({...m,...form})} disabled={!form.name} style={{ ...css.btn, opacity:form.name?1:0.65 }}>Speichern</button>
-      </div>
-    </div>
-  );
-}
-
 function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
   const [loading, setLoading] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [editMa, setEditMa] = useState(null);
   const [resending, setResending] = useState(null);
   const fileRef = useRef();
 
@@ -718,26 +697,17 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
     setResending(email);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("invite-user", {
+      const res = await supabase.functions.invoke("send-invitation-email", {
         body: { action: "invite_schulungen", email, name, rolle },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
-      if (res.error) throw new Error(res.data?.error || res.error.message);
+      if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
       showToast(`Einladung an ${email} erneut gesendet.`);
     } catch (e) {
       showToast(`Fehler: ${e.message}`);
     }
     setResending(null);
-  };
-
-  const saveMa = async (updated) => {
-    setMa(list => list.map(x => (x.id === updated.id || x.email === updated.email) ? updated : x));
-    await supabase.from("mitarbeiter").update({
-      name: updated.name, team: updated.team, berufsrolle: updated.berufsrolle, rolle: updated.rolle,
-    }).eq("email", updated.email);
-    setEditMa(null);
-    showToast(`${updated.name} gespeichert.`);
   };
 
   const deleteUser = async (id, email) => {
@@ -774,7 +744,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{m.name}</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{m.email}</div>
-                  <div style={{ fontSize: 11, marginTop: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 11, marginTop: 4, display: "flex", gap: 8, alignItems: "center" }}>
                     <span style={{
                       background: m.rolle === "admin" ? C.blueDim : "#f3f4f6",
                       color: m.rolle === "admin" ? C.blue : "#6b7280",
@@ -784,12 +754,6 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
                     }}>
                       {m.rolle === "admin" ? "Admin" : "Nutzer"}
                     </span>
-                    {m.team && (
-                      <span style={{ background: m.team === "Caritas" ? "#FEF3E2" : C.blueDim, color: m.team === "Caritas" ? "#8B5E00" : C.navy, padding: "1px 7px", borderRadius: 20, fontWeight: 600 }}>
-                        {m.team}
-                      </span>
-                    )}
-                    {m.berufsrolle && <span style={{ color: C.muted }}>{m.berufsrolle}</span>}
                     {bestaetigt
                       ? <span style={{ color: C.muted }}>✓ Bestätigt</span>
                       : <span style={{ color: "#f59e0b", fontWeight: 600 }}>⏳ Einladung ausstehend</span>
@@ -809,11 +773,6 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
                       }}
                     >
                       {resending === m.email ? "Wird gesendet…" : "Erneut senden"}
-                    </button>
-                  )}
-                  {isAdmin && (
-                    <button onClick={() => setEditMa(m)} style={{ ...css.btnSec, padding: "5px 11px", fontSize: 12 }}>
-                      Bearbeiten
                     </button>
                   )}
                   <button
@@ -836,14 +795,9 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
             showToast={showToast}
             onInviteSent={(m) => {
               setMa(list => [...list, m]);
+              setInviteOpen(false);
             }}
           />
-        </Modal>
-      )}
-
-      {editMa && (
-        <Modal onClose={() => setEditMa(null)}>
-          <EditMaModal m={editMa} onSave={saveMa} onClose={() => setEditMa(null)} />
         </Modal>
       )}
 
@@ -1082,7 +1036,7 @@ function exportExcel(schulungen, ma) {
 export default function App() {
   const [schulungen, setSchulungen] = useState([]);
   const [schulungenLoading, setSchulungenLoading] = useState(false);
-  const [ma, setMa] = useState(SEED_MA);
+  const [ma, setMa] = useState([]);
   const [modal, setModal] = useState(null);
   const [active, setActive] = useState(null);
   const [tab, setTab] = useState("schulungen");
@@ -1118,15 +1072,6 @@ export default function App() {
     supabase.from("schulungen").select("*").order("created_at", { ascending: false }).then(({ data, error }) => {
       if (!error && data) setSchulungen(data);
       setSchulungenLoading(false);
-    });
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    supabase.from("mitarbeiter").select("*").order("name").then(({ data, error }) => {
-      if (!error && data && data.length > 0) {
-        setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
-      }
     });
   }, [user]);
 
