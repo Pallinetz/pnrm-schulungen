@@ -761,20 +761,18 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  {!bestaetigt && (
-                    <button
-                      onClick={() => resendInvite(m.email, m.name, m.rolle)}
-                      disabled={resending === m.email}
-                      style={{
-                        ...css.btnSec,
-                        padding: "5px 11px",
-                        fontSize: 12,
-                        opacity: resending === m.email ? 0.65 : 1,
-                      }}
-                    >
-                      {resending === m.email ? "Wird gesendet…" : "Erneut senden"}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => resendInvite(m.email, m.name, m.rolle)}
+                    disabled={resending === m.email}
+                    style={{
+                      ...css.btnSec,
+                      padding: "5px 11px",
+                      fontSize: 12,
+                      opacity: resending === m.email ? 0.65 : 1,
+                    }}
+                  >
+                    {resending === m.email ? "Wird gesendet…" : "Erneut senden"}
+                  </button>
                   <button
                     onClick={() => deleteUser(m.id, m.email)}
                     style={{ ...css.btnDanger, padding: "5px 11px" }}
