@@ -617,10 +617,21 @@ Format:
 }
 
 // ─── Mitarbeiterverwaltung ────────────────────────────────────────────────────
+function buildInviteMail(name, email, url, app) {
+  const subject = app === "schulungen"
+    ? "Einladung zu Schulungen & Wissen – Palliativ Netzwerk Rhein-Maas"
+    : "Einladung zur Raumplanung – Palliativ Netzwerk Rhein-Maas";
+  const label = app === "schulungen" ? "Schulungen & Wissen" : "Raumplanung";
+  const body = `Hallo ${name},\n\nich lade dich herzlich zu ${label} der Palliativ Netzwerk Rhein-Maas ein.\n\nBitte klicke auf folgenden Link, um dein Passwort zu setzen und dich anzumelden:\n${url}\n\nDer Link ist 7 Tage gültig.\n\nViele Grüße\nAlexander Pfeiffer`;
+  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function InviteModal({ onClose, showToast, onInviteSent }) {
   const [form, setForm] = useState({ name:"", email:"", rolle:"user" });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [inviteUrl, setInviteUrl] = useState(null);
+  const [copied, setCopied] = useState(false);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const handleInvite = async () => {
@@ -629,26 +640,44 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("send-invitation-email", {
-        body: { action:"invite_schulungen", email: form.email, name: form.name, rolle: form.rolle },
+        body: { action:"create_link_schulungen", email: form.email, name: form.name, rolle: form.rolle },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      setResult(`Einladung an ${form.email} gesendet.`);
+      const url = res.data.url;
+      setInviteUrl(url);
+      setResult(`Link für ${form.email} erstellt.`);
       if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
-      showToast(`Einladung an ${form.email} gesendet.`);
-      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
+      window.location.href = buildInviteMail(form.name, form.email, url, "schulungen");
     } catch (e) {
       setResult(`Fehler: ${e.message}`);
     }
     setLoading(false);
   };
 
+  const copyLink = () => {
+    navigator.clipboard.writeText(inviteUrl);
+    setCopied(true);
+    setTimeout(()=>setCopied(false), 2000);
+  };
+
   return (
     <div style={{ fontFamily:FONT, color:C.text }}>
       <h2 style={{ margin:"0 0 18px", fontSize:20 }}>Mitarbeiter einladen</h2>
       {result
-        ? <div style={css.good}>{result}</div>
+        ? <div>
+            <div style={css.good}>{result}</div>
+            {inviteUrl && (
+              <div style={{ marginTop:14 }}>
+                <p style={{ fontSize:13, color:C.muted, margin:"0 0 8px" }}>Outlook sollte sich mit fertigem Einladungstext geöffnet haben. Falls nicht, Link manuell kopieren:</p>
+                <div style={{ display:"flex", gap:8 }}>
+                  <input readOnly value={inviteUrl} style={{ ...css.inp, fontSize:12, flex:1 }} onClick={e=>e.target.select()} />
+                  <button onClick={copyLink} style={{ ...css.btnSec, padding:"8px 14px", fontSize:13 }}>{copied?"Kopiert!":"Kopieren"}</button>
+                </div>
+              </div>
+            )}
+          </div>
         : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
             <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} placeholder="Vor- und Nachname" /></div>
             <div><label style={css.lbl}>E-Mail</label><input type="email" value={form.email} onChange={e=>set("email",e.target.value)} style={css.inp} placeholder="email@pallinetz.de" /></div>
@@ -657,7 +686,7 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
       }
       <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:18 }}>
         <button onClick={onClose} style={css.btnSec}>Schließen</button>
-        {!result && <button onClick={handleInvite} disabled={loading||!form.email||!form.name} style={{ ...css.btn, opacity:(loading||!form.email||!form.name)?0.65:1 }}>{loading?"Wird gesendet…":"Einladung senden"}</button>}
+        {!result && <button onClick={handleInvite} disabled={loading||!form.email||!form.name} style={{ ...css.btn, opacity:(loading||!form.email||!form.name)?0.65:1 }}>{loading?"Wird erstellt…":"Einladung erstellen & in Outlook öffnen"}</button>}
       </div>
     </div>
   );
@@ -698,12 +727,14 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("send-invitation-email", {
-        body: { action: "invite_schulungen", email, name, rolle },
+        body: { action: "create_link_schulungen", email, name, rolle },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      showToast(`Einladung an ${email} erneut gesendet.`);
+      const url = res.data.url;
+      showToast(`Link für ${email} erstellt – Outlook öffnet sich.`);
+      window.location.href = buildInviteMail(name, email, url, "schulungen");
     } catch (e) {
       showToast(`Fehler: ${e.message}`);
     }
