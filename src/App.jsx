@@ -1149,10 +1149,10 @@ function WissenView({ isAdmin, showToast }) {
           <h2 style={{ margin:0, fontSize:20 }}>📚 Wissensdatenbank</h2>
         </div>
         {isAdmin && !selected && !editing && (
-          <button onClick={()=>{ setForm({titel:"",kategorie:"Pflege",inhalt:""}); setEditing("neu"); }} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Neuer Artikel</button>
+          <button onClick={()=>{ setForm({titel:"",kategorie:"Pflege",inhalt:"",status:"Entwurf"}); setEditing("neu"); }} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Neuer Artikel</button>
         )}
         {isAdmin && selected && !editing && (
-          <button onClick={()=>{ setForm({titel:art.titel,kategorie:art.kategorie,inhalt:art.inhalt}); setEditing(selected); }} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>✏️ Bearbeiten</button>
+          <button onClick={()=>{ setForm({titel:art.titel,kategorie:art.kategorie,inhalt:art.inhalt,status:art.status||"Entwurf"}); setEditing(selected); }} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>✏️ Bearbeiten</button>
         )}
       </div>
 
@@ -1160,7 +1160,7 @@ function WissenView({ isAdmin, showToast }) {
       {editing && (
         <div style={css.section}>
           <h3 style={{ margin:"0 0 14px", fontSize:16 }}>{editing==="neu"?"Neuer Artikel":"Artikel bearbeiten"}</h3>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:12, marginBottom:12 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr auto auto", gap:12, marginBottom:12 }}>
             <div>
               <label style={css.lbl}>Titel</label>
               <input value={form.titel} onChange={e=>setF("titel",e.target.value)} style={css.inp} />
@@ -1169,6 +1169,12 @@ function WissenView({ isAdmin, showToast }) {
               <label style={css.lbl}>Kategorie</label>
               <select value={form.kategorie} onChange={e=>setF("kategorie",e.target.value)} style={css.inp}>
                 {KATEGORIEN.map(k=><option key={k}>{k}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={css.lbl}>Status</label>
+              <select value={form.status} onChange={e=>setF("status",e.target.value)} style={css.inp}>
+                <option>Entwurf</option><option>Freigegeben</option><option>Archiviert</option>
               </select>
             </div>
           </div>
@@ -1184,7 +1190,8 @@ function WissenView({ isAdmin, showToast }) {
       {/* Detailansicht */}
       {selected && art && !editing && (
         <div style={css.section}>
-          <span style={{ ...css.badge, marginBottom:10, display:"inline-block" }}>{kategorieMap[art.kategorie_id] ?? art.kategorie ?? "—"}</span>
+          <span style={{ ...css.badge, marginBottom:10, marginRight:6, display:"inline-block" }}>{kategorieMap[art.kategorie_id] ?? art.kategorie ?? "—"}</span>
+          {isAdmin && art.status && art.status!=="Freigegeben" && <span style={{ ...css.badge, marginBottom:10, display:"inline-block", background:"#fde68a", color:"#92400e" }}>{art.status}</span>}
           <h2 style={{ margin:"0 0 14px", fontSize:20 }}>{art.titel}</h2>
           <p style={{ margin:"0 0 20px", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{art.inhalt}</p>
           {art.dateien.filter(d=>d.typ==="video").map(d=>(
@@ -1214,7 +1221,8 @@ function WissenView({ isAdmin, showToast }) {
               <div key={a.id} style={{ ...css.section, cursor:"pointer" }} onClick={()=>setSelected(a.id)}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
                   <div style={{ flex:1 }}>
-                    <span style={{ ...css.badge, marginBottom:6, display:"inline-block" }}>{kategorieMap[a.kategorie_id] ?? a.kategorie ?? "—"}</span>
+                    <span style={{ ...css.badge, marginBottom:6, marginRight:6, display:"inline-block" }}>{kategorieMap[a.kategorie_id] ?? a.kategorie ?? "—"}</span>
+                    {isAdmin && a.status && a.status!=="Freigegeben" && <span style={{ ...css.badge, marginBottom:6, display:"inline-block", background:"#fde68a", color:"#92400e" }}>{a.status}</span>}
                     <h3 style={{ margin:"0 0 4px", fontSize:16 }}>{a.titel}</h3>
                     <p style={{ margin:0, fontSize:12, color:C.muted }}>{stripMd(a.inhalt).slice(0,120)}{stripMd(a.inhalt).length>120?"…":""}</p>
                     {videos>0 && <span style={{ fontSize:12, color:C.blue, marginTop:4, display:"inline-block" }}>▶ {videos} Video{videos!==1?"s":""}</span>}
