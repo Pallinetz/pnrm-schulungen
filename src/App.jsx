@@ -109,21 +109,6 @@ function WissenVideoBlock({ datei }) {
   useEffect(() => {
     getSignedVideoUrl(datei.url).then(setSignedUrl).catch(console.error);
   }, [datei.url]);
-
-  // ─── Load Mitarbeiter von Supabase ──────────────────────────────────────
-  useEffect(() => {
-    const loadMa = async () => {
-      try {
-        const { data, error } = await supabase.from('mitarbeiter').select('*').order('name');
-        if (!error && data) {
-          setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
-        }
-      } catch (e) {
-        console.error('Fehler beim Laden von Mitarbeitern:', e);
-      }
-    };
-    if (user) loadMa();
-  }, [user]);
   return <VideoPlayer url={signedUrl} titel={datei.name} />;
 }
 
@@ -856,7 +841,7 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
   );
 }
 
-function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
+function MitarbeiterView({ ma, setMa, showToast, isAdmin, user, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -907,6 +892,8 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
   };
 
   const deleteUser = async (id, email) => {
+    const { error } = await supabase.from("mitarbeiter").delete().eq("id", id);
+    if (error) { showToast(`Fehler: ${error.message}`); return; }
     setMa(m => m.filter(x => x.id !== id));
     showToast(`${email} entfernt.`);
   };
@@ -988,8 +975,8 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
           <InviteModal
             onClose={() => setInviteOpen(false)}
             showToast={showToast}
-            onInviteSent={(m) => {
-              setMa(list => [...list, m]);
+            onInviteSent={() => {
+              onRefresh();
               setInviteOpen(false);
             }}
           />
@@ -1001,12 +988,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
           <BulkInviteModal
             onClose={() => setBulkOpen(false)}
             showToast={showToast}
-            onInviteSent={(m) => {
-              setMa(list => {
-                if (list.some(x => x.email === m.email)) return list;
-                return [...list, m];
-              });
-            }}
+            onInviteSent={onRefresh}
           />
         </Modal>
       )}
@@ -1333,6 +1315,13 @@ export default function App() {
     });
   }, [user]);
 
+  const loadMitarbeiter = () => {
+    supabase.from("mitarbeiter").select("*").order("name").then(({ data, error }) => {
+      if (!error && data) setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
+    });
+  };
+  useEffect(() => { if (user) loadMitarbeiter(); }, [user]);
+
   async function checkAdmin(email) {
     const { data, error } = await supabase.from("mitarbeiter").select("rolle").eq("email", email).single();
     if (error || !data) {
@@ -1521,7 +1510,7 @@ export default function App() {
           })}
         </>}
         {tab==="wissen"&&<WissenView isAdmin={isAdmin} showToast={showToast} />}
-        {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} user={user} />}
+        {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} user={user} onRefresh={loadMitarbeiter} />}
 
         <footer style={{ marginTop:48, paddingTop:20, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, paddingBottom:28 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
