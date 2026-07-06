@@ -1294,8 +1294,15 @@ export default function App() {
 
   async function checkAdmin(email) {
     const { data, error } = await supabase.from("mitarbeiter").select("rolle").eq("email", email).single();
-    console.log("checkAdmin:", email, "→ data:", data, "error:", error);
-    setIsAdmin(data?.rolle === "admin");
+    if (error || !data) {
+      // Angemeldet bei Supabase Auth, aber kein Eintrag in der Mitarbeiter-Tabelle
+      // (z.B. Selbstregistrierung falls Auth-Signup nicht deaktiviert ist, oder entfernter Mitarbeiter).
+      setIsAdmin(false);
+      setLoginError("Dieses Konto ist nicht für die Schulungsplattform freigeschaltet. Bitte wende dich an das Admin-Team.");
+      await supabase.auth.signOut();
+      return;
+    }
+    setIsAdmin(data.rolle === "admin");
   }
 
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),5000);};

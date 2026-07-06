@@ -1,20 +1,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Nur diese Origins dürfen die Function per Browser-fetch aufrufen (statt "*").
+const ALLOWED_ORIGINS = [
+  "https://pnrm-schulungen.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+]
+
+function buildCorsHeaders(req: Request) {
+  const origin = req.headers.get("Origin") ?? ""
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Vary": "Origin",
+  }
 }
 
-const ok  = (data: unknown) => new Response(JSON.stringify(data),           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
-const err = (msg: string)   => new Response(JSON.stringify({ error: msg }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
-
-// ponytail: 10 Hex-Zeichen (~40 Bit) reichen für ein Einmalpasswort, das sofort geändert werden muss.
-function generatePassword() {
-  return crypto.randomUUID().replace(/-/g, "").slice(0, 10)
+// ponytail: 12 Zeichen ohne verwechselbare Buchstaben/Ziffern (~69 Bit) – Einmalpasswort, muss sofort geändert werden.
+const PW_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+function generatePassword(length = 12) {
+  const bytes = new Uint8Array(length)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, b => PW_CHARS[b % PW_CHARS.length]).join("")
 }
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req)
+  const ok  = (data: unknown) => new Response(JSON.stringify(data),           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+  const err = (msg: string)   => new Response(JSON.stringify({ error: msg }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
   }
@@ -44,7 +59,8 @@ serve(async (req) => {
 
     // Einmalpasswort setzen: neuen Auth-User anlegen oder bestehenden aktualisieren
     const password = generatePassword()
-    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+    // ponytail: perPage:1000 deckt das gesamte PNRM-Team ab; bei >1000 Auth-Nutzern bräuchte es Paginierung.
+    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
     if (listError) return err("Nutzer-Suche fehlgeschlagen: " + listError.message)
     const existingAuthUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
 

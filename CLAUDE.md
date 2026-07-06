@@ -93,3 +93,20 @@ vercel link      # Projekt mit Vercel-Deployment verknüpfen
 - **Lokal**: `ANTHROPIC_KEY` in `.env` eintragen (wird nie committet)
 - **Produktion**: In Vercel Dashboard unter **Settings → Environment Variables** → `ANTHROPIC_KEY` anlegen
 - Der Key steht ausschließlich in der Serverless Function (`api/anthropic.js`) — nie im Browser-Bundle
+
+## Deployment-Checkliste (Supabase)
+
+Änderungen an `supabase/functions/` oder `supabase/migrations/` werden durch `git push`
+**nicht** automatisch live — Vercel deployt nur das Frontend. Nach jedem Merge, der eine
+dieser beiden Stellen betrifft, zusätzlich:
+
+```powershell
+npx supabase login      # einmalig, öffnet Browser-Login
+npx supabase link       # einmalig, Projekt verknüpfen
+npm run deploy:functions   # Edge Function send-invitation-email deployen
+npm run db:push             # neue RLS-Policies/Migrationen anwenden
+```
+
+Ohne diesen Schritt läuft im Live-Betrieb weiterhin die alte Function-Version bzw.
+fehlen neue RLS-Policies — das war bereits einmal die Ursache dafür, dass sich niemand
+anmelden konnte (Function hieß im Code anders als deployt).
