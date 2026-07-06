@@ -43,11 +43,11 @@ const ROLLEN = ["Arzt / Ärztin","Pflegefachkraft","Alltagsbegleiter/in","Koordi
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const css = {
-  section: { background:C.white, border:`1px solid ${C.border}`, borderRadius:12, padding:20, margin:"12px 0" },
-  inp: { width:"100%", fontSize:14, padding:"10px 14px", border:`1px solid ${C.inputBorder}`, borderRadius:8, background:C.white, color:C.text, boxSizing:"border-box", fontFamily:FONT, outline:"none" },
+  section: { background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:20, margin:"12px 0", boxShadow:"0 1px 2px rgba(22,35,58,.04)" },
+  inp: { width:"100%", fontSize:14, padding:"10px 14px", border:`1px solid ${C.inputBorder}`, borderRadius:9, background:C.white, color:C.text, boxSizing:"border-box", fontFamily:FONT, outline:"none", transition:"border-color .15s ease, box-shadow .15s ease" },
   lbl: { display:"block", fontWeight:600, marginBottom:4, fontSize:13, color:C.text },
-  btn: { appearance:"none", border:0, borderRadius:8, background:C.navy, color:C.white, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT },
-  btnSec: { appearance:"none", borderRadius:8, background:"transparent", color:C.navy, border:`1px solid ${C.border}`, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT },
+  btn: { appearance:"none", border:0, borderRadius:9, background:`linear-gradient(180deg, #35577E, ${C.navy})`, color:C.white, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 3px rgba(30,52,82,.3), inset 0 1px 0 rgba(255,255,255,.08)", transition:"transform .12s ease, box-shadow .12s ease" },
+  btnSec: { appearance:"none", borderRadius:9, background:C.white, color:C.navy, border:`1px solid ${C.inputBorder}`, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 2px rgba(22,35,58,.05)", transition:"border-color .12s ease, box-shadow .12s ease" },
   btnDanger: { background:C.bad.bg, color:C.bad.text, border:`1px solid ${C.bad.border}`, borderRadius:8, padding:"6px 12px", fontWeight:600, fontSize:13, cursor:"pointer", appearance:"none", fontFamily:FONT },
   good: { background:C.good.bg, border:`1px solid ${C.good.border}`, color:C.good.text, padding:"12px 16px", borderRadius:8, fontSize:14 },
   bad:  { background:C.bad.bg,  border:`1px solid ${C.bad.border}`,  color:C.bad.text,  padding:"12px 16px", borderRadius:8, fontSize:14 },
@@ -62,11 +62,11 @@ const css = {
 };
 
 // ─── PNRM Logo ────────────────────────────────────────────────────────────────
-function PNRMLogo({ compact }) {
+function PNRMLogo({ compact, white }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", lineHeight:1 }}>
-      <img src="/logo.png" alt="Palliativ Netzwerk Rhein-Maas" style={{ height: compact ? "48px" : "60px", width:"auto", objectFit:"contain", display:"block" }} />
-      {!compact && <div style={{ fontSize:11, color:C.muted, letterSpacing:"0.3px", marginTop:6 }}>Schulungsverwaltung</div>}
+      <img src="/logo.png" alt="Palliativ Netzwerk Rhein-Maas" style={{ height: compact ? "40px" : "60px", width:"auto", objectFit:"contain", display:"block", filter: white ? "brightness(0) invert(1)" : "none" }} />
+      {!compact && !white && <div style={{ fontSize:11, color:C.muted, letterSpacing:"0.3px", marginTop:6 }}>Schulungsverwaltung</div>}
     </div>
   );
 }
@@ -622,8 +622,172 @@ function buildInviteMail(name, email, url, app) {
     ? "Einladung zu Schulungen & Wissen – Palliativ Netzwerk Rhein-Maas"
     : "Einladung zur Raumplanung – Palliativ Netzwerk Rhein-Maas";
   const label = app === "schulungen" ? "Schulungen & Wissen" : "Raumplanung";
-  const body = `Hallo ${name},\n\nich lade dich herzlich zu ${label} der Palliativ Netzwerk Rhein-Maas ein.\n\nBitte klicke auf folgenden Link, um dein Passwort zu setzen und dich anzumelden:\n${url}\n\nDer Link ist 7 Tage gültig.\n\nViele Grüße\nAlexander Pfeiffer`;
+  const body = `Hallo ${name},\n\nich lade dich herzlich zu ${label} der Palliativ Netzwerk Rhein-Maas ein.\n\nBitte klicke auf folgenden Link, um dein Passwort zu setzen und dich anzumelden:\n${url}\n\nDer Link ist 7 Tage gültig.\n\n`;
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+
+function parseImportFile(file) {
+  return new Promise((resolve, reject) => {
+    const isCsv = /\.csv$/i.test(file.name);
+    const r = new FileReader();
+    r.onerror = () => reject(new Error("Datei konnte nicht gelesen werden."));
+    r.onload = ev => {
+      try {
+        let rows = [];
+        if (isCsv) {
+          const text = ev.target.result;
+          const lines = text.split(/\r?\n/).filter(l => l.trim());
+          if (!lines.length) return resolve([]);
+          const delim = lines[0].includes(";") ? ";" : ",";
+          const header = lines[0].split(delim).map(h => h.trim().toLowerCase());
+          const idxV = header.findIndex(h => h.includes("vorname"));
+          const idxN = header.findIndex(h => h.includes("nachname") || (h.includes("name") && !h.includes("vorname") && !h.includes("nutzername")));
+          const idxE = header.findIndex(h => h.includes("mail"));
+          rows = lines.slice(1).map(line => {
+            const c = line.split(delim);
+            return {
+              vorname: idxV > -1 ? (c[idxV] || "").trim() : "",
+              nachname: idxN > -1 ? (c[idxN] || "").trim() : "",
+              email: idxE > -1 ? (c[idxE] || "").trim() : "",
+            };
+          });
+        } else {
+          const wb = XLSX.read(ev.target.result, { type: "binary" });
+          const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+          rows = json.map(r => {
+            const keys = Object.keys(r);
+            const kV = keys.find(k => k.toLowerCase().includes("vorname"));
+            const kN = keys.find(k => k.toLowerCase().includes("nachname") || (k.toLowerCase().includes("name") && !k.toLowerCase().includes("vorname")));
+            const kE = keys.find(k => k.toLowerCase().includes("mail"));
+            return {
+              vorname: kV ? String(r[kV] || "").trim() : "",
+              nachname: kN ? String(r[kN] || "").trim() : "",
+              email: kE ? String(r[kE] || "").trim() : "",
+            };
+          });
+        }
+        resolve(rows.filter(r => r.email && r.email.includes("@")));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    if (isCsv) r.readAsText(file, "utf-8");
+    else r.readAsBinaryString(file);
+  });
+}
+
+function BulkInviteModal({ onClose, showToast, onInviteSent }) {
+  const [rows, setRows] = useState([]);
+  const [rolle, setRolle] = useState("user");
+  const [processing, setProcessing] = useState(false);
+  const [results, setResults] = useState(null);
+  const fileRef = useRef();
+
+  const handleFile = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const parsed = await parseImportFile(file);
+      if (!parsed.length) { showToast("Keine gültigen Zeilen mit E-Mail gefunden."); return; }
+      setRows(parsed);
+    } catch (err) {
+      showToast(`Fehler beim Lesen: ${err.message}`);
+    }
+    e.target.value = "";
+  };
+
+  const removeRow = i => setRows(r => r.filter((_, idx) => idx !== i));
+
+  const createAll = async () => {
+    setProcessing(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const out = [];
+    for (const row of rows) {
+      const name = `${row.vorname} ${row.nachname}`.trim() || row.email;
+      try {
+        const res = await supabase.functions.invoke("send-invitation-email", {
+          body: { action: "create_link_schulungen", email: row.email, name, rolle },
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (res.error) throw new Error(res.error.message);
+        if (res.data?.error) throw new Error(res.data.error);
+        out.push({ name, email: row.email, url: res.data.url, ok: true });
+        if (onInviteSent) onInviteSent({ email: row.email, name, rolle, id: `bulk_${Date.now()}_${row.email}`, bestaetigt: false });
+      } catch (err) {
+        out.push({ name, email: row.email, error: err.message, ok: false });
+      }
+    }
+    setResults(out);
+    setProcessing(false);
+  };
+
+  const copyLink = url => navigator.clipboard.writeText(url);
+  const openMail = (name, email, url) => { window.location.href = buildInviteMail(name, email, url, "schulungen"); };
+
+  return (
+    <div style={{ fontFamily: FONT, color: C.text }}>
+      <h2 style={{ margin: "0 0 6px", fontSize: 20 }}>Mehrere Mitarbeiter einladen</h2>
+      <p style={{ margin: "0 0 16px", fontSize: 13, color: C.muted }}>CSV oder Excel mit Spalten Vorname, Nachname, E-Mail hochladen.</p>
+
+      {!results && (
+        <>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
+            <button onClick={() => fileRef.current.click()} style={{ ...css.btnSec, fontSize: 13, padding: "8px 14px" }}>📁 Datei auswählen</button>
+            <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={{ display: "none" }} />
+            {rows.length > 0 && <span style={{ fontSize: 13, color: C.muted }}>{rows.length} Person{rows.length !== 1 ? "en" : ""} erkannt</span>}
+            <div style={{ marginLeft: "auto" }}>
+              <select value={rolle} onChange={e => setRolle(e.target.value)} style={{ ...css.inp, fontSize: 13, padding: "6px 10px" }}>
+                <option value="user">Alle als Nutzer</option>
+                <option value="admin">Alle als Admin</option>
+              </select>
+            </div>
+          </div>
+
+          {rows.length > 0 && (
+            <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
+              {rows.map((r, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: i < rows.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                  <div style={{ flex: 1, fontSize: 13 }}><strong>{r.vorname} {r.nachname}</strong></div>
+                  <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{r.email}</div>
+                  <button onClick={() => removeRow(i)} style={{ ...css.btnDanger, padding: "3px 9px", fontSize: 12 }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {results && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 340, overflowY: "auto" }}>
+          {results.map((r, i) => (
+            <div key={i} style={{ ...css.section, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: `4px solid ${r.ok ? C.blue : "#dc2626"}` }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{r.name}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{r.email}</div>
+                {!r.ok && <div style={{ fontSize: 12, color: "#dc2626", marginTop: 3 }}>Fehler: {r.error}</div>}
+              </div>
+              {r.ok && (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => copyLink(r.url)} style={{ ...css.btnSec, fontSize: 12, padding: "5px 10px" }}>Link kopieren</button>
+                  <button onClick={() => openMail(r.name, r.email, r.url)} style={{ ...css.btn, fontSize: 12, padding: "5px 10px" }}>In Outlook öffnen</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
+        <button onClick={onClose} style={css.btnSec}>Schließen</button>
+        {!results && rows.length > 0 && (
+          <button onClick={createAll} disabled={processing} style={{ ...css.btn, opacity: processing ? 0.65 : 1 }}>
+            {processing ? "Erstelle Links…" : `${rows.length} Einladungslinks erstellen`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function InviteModal({ onClose, showToast, onInviteSent }) {
@@ -695,6 +859,7 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
 function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
   const [loading, setLoading] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [resending, setResending] = useState(null);
   const fileRef = useRef();
 
@@ -753,6 +918,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => fileRef.current.click()} style={{ ...css.btnSec, fontSize: 13, padding: "8px 13px" }}>📥 Import CSV</button>
           <input ref={fileRef} type="file" accept=".xlsx,.csv" onChange={importCSV} style={{ display: "none" }} />
+          {isAdmin && <button onClick={() => setBulkOpen(true)} style={{ ...css.btnSec, fontSize: 13, padding: "8px 14px" }}>📊 Mehrere per Excel/CSV</button>}
           {isAdmin && <button onClick={() => setInviteOpen(true)} style={{ ...css.btn, fontSize: 13, padding: "8px 14px" }}>+ Mitarbeiter einladen</button>}
         </div>
       </div>
@@ -825,6 +991,21 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
             onInviteSent={(m) => {
               setMa(list => [...list, m]);
               setInviteOpen(false);
+            }}
+          />
+        </Modal>
+      )}
+
+      {bulkOpen && (
+        <Modal onClose={() => setBulkOpen(false)} wide>
+          <BulkInviteModal
+            onClose={() => setBulkOpen(false)}
+            showToast={showToast}
+            onInviteSent={(m) => {
+              setMa(list => {
+                if (list.some(x => x.email === m.email)) return list;
+                return [...list, m];
+              });
             }}
           />
         </Modal>
@@ -1117,44 +1298,60 @@ export default function App() {
   const filtered=schulungen.filter(s=>{const mF=filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&s.empfaenger?.length>0);const mS=!search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());return mF&&mS;});
 
   if (!user) return (
-    <div style={{ minHeight:"100vh", background:`linear-gradient(160deg, #E8EFF8 0%, #F0F4F8 60%, #E4EEF5 100%)`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:FONT, color:C.text, position:"relative", overflow:"hidden" }}>
-      {/* Dezente Wellen im Hintergrund */}
-      <svg style={{ position:"absolute", bottom:0, left:0, width:"100%", opacity:0.07, pointerEvents:"none" }} viewBox="0 0 1200 200" preserveAspectRatio="none">
-        <path d="M0,120 Q200,40 400,100 Q600,160 800,80 Q1000,0 1200,60 L1200,200 L0,200 Z" fill={C.navy}/>
-      </svg>
-      <svg style={{ position:"absolute", top:0, right:0, width:"60%", opacity:0.04, pointerEvents:"none" }} viewBox="0 0 800 300" preserveAspectRatio="none">
-        <path d="M800,0 Q600,80 400,40 Q200,0 0,60 L0,0 Z" fill={C.blueAccent}/>
-      </svg>
-      <div style={{ background:C.white, borderRadius:16, padding:"40px 36px", width:"100%", maxWidth:420, boxShadow:"0 8px 40px rgba(46,75,110,0.12)", border:`1px solid ${C.border}`, position:"relative", zIndex:1 }}>
-        <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ display:"inline-flex", flexDirection:"column", alignItems:"center", gap:4, marginBottom:16 }}>
-            <PNRMLogo compact={false} />
-          </div>
-          <h1 style={{ margin:"4px 0 4px", fontSize:19, fontWeight:700, color:C.text }}>Schulungsverwaltung</h1>
-          <p style={{ margin:0, color:C.muted, fontSize:13 }}>Interne Schulungsplattform · SAPV</p>
+    <div style={{ minHeight:"100vh", display:"flex", fontFamily:FONT, color:C.text }}>
+      {/* Marken-Panel */}
+      <div className="pnrm-brandpanel" style={{ flex:"0 0 44%", background:`linear-gradient(165deg, ${C.navyDark} 0%, ${C.navy} 55%, #35597F 100%)`, color:C.white, display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"48px 52px", position:"relative", overflow:"hidden" }}>
+        <svg style={{ position:"absolute", bottom:-20, left:0, width:"140%", opacity:0.1, pointerEvents:"none" }} viewBox="0 0 1200 300" preserveAspectRatio="none">
+          <path d="M0,180 Q200,80 400,150 Q600,220 800,120 Q1000,20 1200,100 L1200,300 L0,300 Z" fill="#fff"/>
+        </svg>
+        <svg style={{ position:"absolute", top:40, right:-60, width:280, height:280, opacity:0.06, pointerEvents:"none" }} viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="48" fill="none" stroke="#fff" strokeWidth="0.8"/>
+          <circle cx="50" cy="50" r="34" fill="none" stroke="#fff" strokeWidth="0.8"/>
+          <circle cx="50" cy="50" r="20" fill="none" stroke="#fff" strokeWidth="0.8"/>
+        </svg>
+        <PNRMLogo compact={false} white />
+        <div style={{ position:"relative", zIndex:1 }}>
+          <div style={{ fontSize:12, fontWeight:600, letterSpacing:"2.5px", textTransform:"uppercase", opacity:0.55, marginBottom:14 }}>Schulungen &amp; Wissen</div>
+          <h1 style={{ margin:0, fontSize:30, fontWeight:700, lineHeight:1.25, letterSpacing:"-0.02em", maxWidth:380 }}>Wissen, das in der Versorgung ankommt.</h1>
+          <p style={{ margin:"14px 0 0", fontSize:14.5, lineHeight:1.6, opacity:0.72, maxWidth:360 }}>Die interne Schulungsplattform der Palliativ Netzwerk Rhein-Maas — Pflichtschulungen, Nachweise und Wissensdatenbank an einem Ort.</p>
         </div>
-        {loginView==="reset" ? (
-          <div>
-            <h2 style={{ margin:"0 0 8px", fontSize:18 }}>Passwort zurücksetzen</h2>
-            <p style={{ margin:"0 0 14px", fontSize:14, color:C.muted }}>Gib deine E-Mail-Adresse ein. Du erhältst einen Reset-Link.</p>
-            {resetResult
-              ? <div style={css.good}>{resetResult}</div>
-              : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                  <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" style={{ ...css.inp, padding:"12px 16px" }} />
-                  <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} style={{ ...css.btn, padding:"12px 16px", fontSize:14, width:"100%", borderRadius:8, opacity:(resetLoading||!resetEmail)?0.65:1 }}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
-                </div>
-            }
-            <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} style={{ background:"none", border:"none", color:C.blueAccent, cursor:"pointer", fontSize:13, marginTop:14, padding:0 }}>← Zurück zum Login</button>
+        <div style={{ fontSize:12, opacity:0.5, position:"relative", zIndex:1 }}>© Palliativ Netzwerk Rhein-Maas GmbH &amp; Co. KG</div>
+      </div>
+
+      {/* Formular-Panel */}
+      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, padding:"40px 24px" }}>
+        <div style={{ width:"100%", maxWidth:400 }}>
+          <div className="pnrm-mobilelogo" style={{ display:"none", marginBottom:28, textAlign:"center" }}>
+            <img src="/logo.png" alt="PNRM" style={{ height:52 }} />
           </div>
-        ) : (
-          <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
-            <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="E-Mail" required autoComplete="email" style={{ ...css.inp, padding:"12px 16px" }} />
-            <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Passwort" required autoComplete="current-password" style={{ ...css.inp, padding:"12px 16px" }} />
-            {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
-            <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"12px 16px", fontSize:14, width:"100%", borderRadius:8, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
-            <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.blueAccent, cursor:"pointer", fontSize:13, padding:0, textAlign:"center" }}>Passwort vergessen?</button>
-          </form>
-        )}
+          {loginView==="reset" ? (
+            <div style={{ background:C.white, borderRadius:16, padding:"36px 34px", boxShadow:"0 1px 2px rgba(22,35,58,.05), 0 12px 40px rgba(46,75,110,.1)", border:`1px solid ${C.border}` }}>
+              <h2 style={{ margin:"0 0 8px", fontSize:20, fontWeight:700, letterSpacing:"-0.01em" }}>Passwort zurücksetzen</h2>
+              <p style={{ margin:"0 0 18px", fontSize:14, color:C.muted, lineHeight:1.55 }}>Gib deine E-Mail-Adresse ein. Du erhältst einen Link, um ein neues Passwort zu setzen.</p>
+              {resetResult
+                ? <div style={css.good}>{resetResult}</div>
+                : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                    <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" style={{ ...css.inp, padding:"12px 16px" }} />
+                    <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} style={{ ...css.btn, padding:"12px 16px", fontSize:14, width:"100%", opacity:(resetLoading||!resetEmail)?0.65:1 }}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
+                  </div>
+              }
+              <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} style={{ background:"none", border:"none", color:C.blueAccent, cursor:"pointer", fontSize:13, marginTop:16, padding:0, fontFamily:FONT }}>← Zurück zur Anmeldung</button>
+            </div>
+          ) : (
+            <div style={{ background:C.white, borderRadius:16, padding:"36px 34px", boxShadow:"0 1px 2px rgba(22,35,58,.05), 0 12px 40px rgba(46,75,110,.1)", border:`1px solid ${C.border}` }}>
+              <h2 style={{ margin:"0 0 4px", fontSize:20, fontWeight:700, letterSpacing:"-0.01em" }}>Anmeldung</h2>
+              <p style={{ margin:"0 0 22px", fontSize:14, color:C.muted }}>Mit deinem PNRM-Konto fortfahren</p>
+              <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                <div><label style={css.lbl}>E-Mail</label><input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="vorname.nachname@pallinetz.de" required autoComplete="email" style={{ ...css.inp, padding:"12px 16px" }} /></div>
+                <div><label style={css.lbl}>Passwort</label><input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password" style={{ ...css.inp, padding:"12px 16px" }} /></div>
+                {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
+                <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"12px 16px", fontSize:14.5, width:"100%", marginTop:4, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
+                <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.blueAccent, cursor:"pointer", fontSize:13, padding:0, textAlign:"center", fontFamily:FONT }}>Passwort vergessen?</button>
+              </form>
+            </div>
+          )}
+          <p style={{ textAlign:"center", fontSize:12, color:C.muted, marginTop:20 }}>Zugang nur auf Einladung · Fragen an das Admin-Team</p>
+        </div>
       </div>
     </div>
   );
@@ -1162,38 +1359,44 @@ export default function App() {
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:FONT, color:C.text, fontSize:15 }}>
       {/* Header */}
-      <header style={{ background:C.white, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:10, boxShadow:"0 1px 8px rgba(46,75,110,0.06)" }}>
-        <div style={{ maxWidth:980, margin:"0 auto", padding:"10px 24px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
-          <PNRMLogo compact={true} />
+      <header style={{ background:`linear-gradient(90deg, ${C.navyDark} 0%, ${C.navy} 100%)`, position:"sticky", top:0, zIndex:10, boxShadow:"0 2px 16px rgba(22,35,58,.18)" }}>
+        <div style={{ maxWidth:980, margin:"0 auto", padding:"12px 24px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <PNRMLogo compact white />
+            <div style={{ width:1, height:26, background:"rgba(255,255,255,.22)" }} />
+            <span style={{ color:C.white, fontSize:13.5, fontWeight:600, letterSpacing:"0.02em", opacity:0.92 }}>Schulungen &amp; Wissen</span>
+          </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-            {isAdmin && user && (
-              <span style={{ background:C.navy, color:C.white, borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:500, whiteSpace:"nowrap" }}>
-                ⚿ {user.email}
+            {user && (
+              <span title={isAdmin?"Administrator":"Nutzer"} style={{ display:"inline-flex", alignItems:"center", gap:7, background:"rgba(255,255,255,.1)", border:"1px solid rgba(255,255,255,.18)", color:C.white, borderRadius:20, padding:"4px 12px 4px 5px", fontSize:12, fontWeight:500, whiteSpace:"nowrap" }}>
+                <span style={{ width:22, height:22, borderRadius:"50%", background:"rgba(255,255,255,.92)", color:C.navy, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700 }}>{(user.email||"?")[0].toUpperCase()}</span>
+                {user.email}{isAdmin && <span style={{ opacity:0.65, fontWeight:400 }}>· Admin</span>}
               </span>
             )}
-            {!isAdmin && user && <span style={{ fontSize:12, color:C.muted, whiteSpace:"nowrap" }}>{user.email}</span>}
-            {user && <button onClick={()=>exportExcel(schulungen,ma)} style={{ ...css.btnSec, fontSize:13, padding:"7px 13px" }}>Excel-Export</button>}
-            {isAdmin&&<button onClick={()=>{setActive(null);setModal("neu");setTab("schulungen");}} style={{ ...css.btn, fontSize:13, padding:"7px 14px" }}>+ Neue Schulung</button>}
-            <button type="button" onClick={()=>supabase.auth.signOut()} style={{ ...css.btnSec, fontSize:12, padding:"6px 12px" }}>Abmelden</button>
+            {user && <button className="hdrbtn" onClick={()=>exportExcel(schulungen,ma)} style={{ appearance:"none", background:"transparent", color:C.white, border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"7px 13px", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>Excel-Export</button>}
+            {isAdmin&&<button className="hdrbtn-solid" onClick={()=>{setActive(null);setModal("neu");setTab("schulungen");}} style={{ appearance:"none", background:C.white, color:C.navy, border:0, borderRadius:8, padding:"7px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 4px rgba(0,0,0,.15)" }}>+ Neue Schulung</button>}
+            <button type="button" className="hdrbtn" onClick={()=>supabase.auth.signOut()} style={{ appearance:"none", background:"transparent", color:"rgba(255,255,255,.85)", border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>Abmelden</button>
           </div>
         </div>
+        <div style={{ height:3, background:`linear-gradient(90deg, ${C.blueLight} 0%, ${C.blueAccent} 40%, ${C.teal} 100%)` }} />
       </header>
 
       <div style={{ maxWidth:980, margin:"0 auto", padding:"20px" }}>
         {/* Stats */}
-        <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
-          {[["Schulungen",schulungen.length,C.navy],["Freigegeben",schulungen.filter(s=>s.status==="Freigegeben").length,C.good.text],["Versendet",schulungen.filter(s=>s.empfaenger?.length>0).length,C.blueAccent],["Nachweise",schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0),C.teal],["Mitarbeiter",ma.length,C.muted]].map(([l,v,accent])=>(
-            <div key={l} style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 16px", borderLeft:`3px solid ${accent}`, display:"flex", flexDirection:"column", gap:2 }}>
-              <div style={{ fontSize:22, fontWeight:700, color:C.navy, lineHeight:1 }}>{v}</div>
-              <div style={{ fontSize:11, color:C.muted }}>{l}</div>
+        <div className="statstrip" style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", background:C.white, border:`1px solid ${C.border}`, borderRadius:14, marginBottom:22, overflow:"hidden", boxShadow:"0 1px 2px rgba(22,35,58,.04), 0 4px 16px rgba(46,75,110,.05)" }}>
+          {[["Schulungen",schulungen.length,C.navy],["Freigegeben",schulungen.filter(s=>s.status==="Freigegeben").length,"#1A6B3C"],["Versendet",schulungen.filter(s=>s.empfaenger?.length>0).length,C.blueAccent],["Nachweise",schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0),C.teal],["Mitarbeiter",ma.length,"#5A6E85"]].map(([l,v,accent],i)=>(
+            <div key={l} style={{ padding:"16px 18px 14px", borderLeft: i>0 ? `1px solid ${C.border}` : "none", position:"relative" }}>
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:accent, opacity:0.85 }} />
+              <div style={{ fontSize:24, fontWeight:700, color:C.text, lineHeight:1.1, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em" }}>{v}</div>
+              <div style={{ fontSize:11, color:C.muted, marginTop:4, textTransform:"uppercase", letterSpacing:"0.7px", fontWeight:600 }}>{l}</div>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, marginBottom:18 }}>
+        <div style={{ display:"flex", gap:2, borderBottom:`1px solid ${C.border}`, marginBottom:20 }}>
           {[["schulungen","Schulungen"],["wissen","Wissen"],...(user?[["mitarbeiter","Mitarbeiter"]]:[])]  .map(([id,label])=>(
-            <button key={id} onClick={()=>setTab(id)} style={{ background:"none", border:"none", borderBottom:tab===id?`3px solid ${C.navy}`:"3px solid transparent", color:tab===id?C.navy:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:400, marginBottom:-1, fontFamily:FONT }}>{label}</button>
+            <button key={id} onClick={()=>setTab(id)} className="ptab" style={{ background: tab===id ? C.white : "none", border:`1px solid ${tab===id?C.border:"transparent"}`, borderBottom: tab===id ? `1px solid ${C.white}` : "1px solid transparent", borderRadius:"10px 10px 0 0", color:tab===id?C.navy:C.muted, padding:"10px 20px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:500, marginBottom:-1, fontFamily:FONT, transition:"color .15s, background .15s" }}>{label}</button>
           ))}
         </div>
 
@@ -1214,10 +1417,10 @@ export default function App() {
               ? { background:"#EAECEF", color:C.muted }
               : { background:C.warn.bg, color:C.warn.text };
             return <div key={sc.id}
-              style={{ ...css.section, cursor:"pointer", padding:20, transition:"box-shadow .15s, border-color .15s" }}
+              style={{ ...css.section, cursor:"pointer", padding:20, transition:"box-shadow .18s ease, border-color .18s ease, transform .18s ease" }}
               onClick={()=>{setActive(sc);setModal("player");}}
-              onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 20px rgba(46,75,110,0.1)";e.currentTarget.style.borderColor=C.blueAccent;}}
-              onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.borderColor=C.border;}}>
+              onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 2px 4px rgba(22,35,58,.05), 0 12px 32px rgba(46,75,110,.13)";e.currentTarget.style.borderColor=C.blueAccent;e.currentTarget.style.transform="translateY(-2px)";}}
+              onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 2px rgba(22,35,58,.04)";e.currentTarget.style.borderColor=C.border;e.currentTarget.style.transform="none";}}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
                 <div style={{ flex:1 }}>
                   <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
@@ -1239,6 +1442,14 @@ export default function App() {
         </>}
         {tab==="wissen"&&<WissenView isAdmin={isAdmin} showToast={showToast} />}
         {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} user={user} />}
+
+        <footer style={{ marginTop:48, paddingTop:20, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, paddingBottom:28 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <img src="/logo.png" alt="" style={{ height:20, opacity:0.4 }} />
+            <span style={{ fontSize:12, color:C.muted }}>© Palliativ Netzwerk Rhein-Maas GmbH &amp; Co. KG</span>
+          </div>
+          <span style={{ fontSize:12, color:C.muted, opacity:0.75 }}>Schulungen &amp; Wissen · Interne Plattform</span>
+        </footer>
       </div>
 
       {(modal==="neu"||modal==="edit")&&<Modal onClose={()=>setModal(null)} wide><SchulungForm schulung={modal==="edit"?active:null} onSave={saveSchul} onClose={()=>setModal(null)} isAdmin={isAdmin} /></Modal>}
@@ -1246,8 +1457,36 @@ export default function App() {
       {modal==="send"&&active&&<Modal onClose={()=>setModal(null)}><SendModal sc={active} ma={ma} onClose={()=>setModal(null)} onSend={sendSchul} /></Modal>}
       {modal==="nw"&&active&&<Modal onClose={()=>setModal(null)} wide><NachweisModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
 
-      {toast&&<div style={{ position:"fixed",bottom:22,right:22,background:toast.type==="warn"?C.warn.bg:C.good.bg,border:`1px solid ${toast.type==="warn"?C.warn.border:C.good.border}`,color:toast.type==="warn"?C.warn.text:C.good.text,padding:"12px 20px",borderRadius:12,fontSize:14,fontWeight:600,boxShadow:"0 8px 24px rgba(0,0,0,.12)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}>{toast.msg}</div>}
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} *{box-sizing:border-box} body{font-family:'Inter',-apple-system,sans-serif;background:#F0F4F8} select option{background:#fff;color:#1A2638} button:hover{filter:brightness(.93)} input:focus,textarea:focus,select:focus{border-color:#2E4B6E!important;outline:none!important;box-shadow:0 0 0 3px rgba(46,75,110,0.08)!important;}`}</style>
+      {toast&&<div style={{ position:"fixed",bottom:22,right:22,display:"flex",alignItems:"flex-start",gap:10,background:C.white,borderLeft:`4px solid ${toast.type==="warn"?"#E8A317":"#2E9E5B"}`,border:`1px solid ${C.border}`,color:C.text,padding:"13px 18px",borderRadius:12,fontSize:14,fontWeight:500,boxShadow:"0 4px 12px rgba(22,35,58,.08), 0 16px 48px rgba(22,35,58,.16)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}><span style={{ fontSize:16, lineHeight:1.3 }}>{toast.type==="warn"?"⚠️":"✓"}</span><span style={{ lineHeight:1.45 }}>{toast.msg}</span></div>}
+      <style>{`
+        @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        *{box-sizing:border-box}
+        body{font-family:'Inter',-apple-system,sans-serif;background:#F0F4F8;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+        ::selection{background:rgba(58,124,165,.22)}
+        select option{background:#fff;color:#1A2638}
+        button{transition:filter .12s ease, transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease}
+        button:hover{filter:brightness(.96)}
+        button:active{transform:translateY(1px)}
+        button:focus-visible, a:focus-visible{outline:2px solid #3A7CA5;outline-offset:2px}
+        .hdrbtn:hover{background:rgba(255,255,255,.12)!important;filter:none!important}
+        .hdrbtn-solid:hover{filter:brightness(.97)!important;box-shadow:0 2px 8px rgba(0,0,0,.2)!important}
+        .ptab:hover{color:#2E4B6E!important;filter:none}
+        input:focus,textarea:focus,select:focus{border-color:#3A7CA5!important;outline:none!important;box-shadow:0 0 0 3px rgba(58,124,165,.13)!important}
+        ::-webkit-scrollbar{width:10px;height:10px}
+        ::-webkit-scrollbar-thumb{background:#C5D0DE;border-radius:99px;border:2px solid #F0F4F8}
+        ::-webkit-scrollbar-thumb:hover{background:#A8B8CC}
+        ::-webkit-scrollbar-track{background:transparent}
+        @media (max-width: 860px){
+          .pnrm-brandpanel{display:none!important}
+          .pnrm-mobilelogo{display:block!important}
+          .statstrip{grid-template-columns:repeat(2,1fr)!important}
+          .statstrip > div{border-left:none!important;border-top:1px solid #D1DCE8}
+          .statstrip > div:first-child,.statstrip > div:nth-child(2){border-top:none}
+        }
+        @media (prefers-reduced-motion: reduce){
+          *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+        }
+      `}</style>
     </div>
   );
 }
