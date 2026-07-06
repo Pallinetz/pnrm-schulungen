@@ -1114,7 +1114,12 @@ function WissenView({ isAdmin, showToast }) {
 
   const saveArtikel = async () => {
     if (!form.titel.trim()) return;
-    const payload = { titel:form.titel, kategorie_id:form.kategorie_id||null, inhalt:form.inhalt, status:form.status||"Entwurf" };
+    const payload = {
+      titel:form.titel, kategorie_id:form.kategorie_id||null, inhalt:form.inhalt, status:form.status||"Entwurf",
+      dok_nr:form.dokNr||null, version:form.version||"1.0", autor:form.autor||null,
+      freigegeben_von:form.freigegebenVon||null, gueltig_ab:form.gueltigAb||null,
+      geltungsbereich:form.geltungsbereich||null, bezugsdokumente:form.bezugsdokumente||null,
+    };
     if (editing==="neu") {
       const { data, error } = await supabase.from("wissen_artikel").insert(payload).select("*, wissen_dateien(*)").single();
       if (error) { showToast(`Fehler: ${error.message}`); return; }
@@ -1160,10 +1165,10 @@ function WissenView({ isAdmin, showToast }) {
           <h2 style={{ margin:0, fontSize:20 }}>📚 Wissensdatenbank</h2>
         </div>
         {isAdmin && !selected && !editing && (
-          <button onClick={()=>{ setForm({titel:"",kategorie_id:Object.keys(kategorieMap)[0]||"",inhalt:"",status:"Entwurf"}); setEditing("neu"); }} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Neuer Artikel</button>
+          <button onClick={()=>{ setForm({titel:"",kategorie_id:Object.keys(kategorieMap)[0]||"",inhalt:"",status:"Entwurf",dokNr:"",version:"1.0",autor:"",freigegebenVon:"",gueltigAb:new Date().toISOString().slice(0,10),geltungsbereich:"",bezugsdokumente:""}); setEditing("neu"); }} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Neuer Artikel</button>
         )}
         {isAdmin && selected && !editing && (
-          <button onClick={()=>{ setForm({titel:art.titel,kategorie_id:art.kategorie_id||"",inhalt:art.inhalt,status:art.status||"Entwurf"}); setEditing(selected); }} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>✏️ Bearbeiten</button>
+          <button onClick={()=>{ setForm({titel:art.titel,kategorie_id:art.kategorie_id||"",inhalt:art.inhalt,status:art.status||"Entwurf",dokNr:art.dok_nr||"",version:art.version||"1.0",autor:art.autor||"",freigegebenVon:art.freigegeben_von||"",gueltigAb:art.gueltig_ab||"",geltungsbereich:art.geltungsbereich||"",bezugsdokumente:art.bezugsdokumente||""}); setEditing(selected); }} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>✏️ Bearbeiten</button>
         )}
       </div>
 
@@ -1189,6 +1194,23 @@ function WissenView({ isAdmin, showToast }) {
               </select>
             </div>
           </div>
+
+          <h4 style={{ margin:"0 0 10px", fontSize:14, color:C.muted }}>📋 Dokumentenlenkung (DIN EN 15224)</h4>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            {[["dokNr","Dok.-Nr."],["version","Version"],["autor","Erstellt durch"],["freigegebenVon","Freigegeben durch"],["gueltigAb","Gültig ab"]].map(([k,l])=>(
+              <div key={k}>
+                <label style={css.lbl}>{l}</label>
+                <input type={k==="gueltigAb"?"date":"text"} value={form[k]||""} onChange={e=>setF(k,e.target.value)} style={css.inp} />
+              </div>
+            ))}
+          </div>
+          {[["geltungsbereich","Geltungsbereich"],["bezugsdokumente","Bezugsdokumente / Normen"]].map(([k,l])=>(
+            <div key={k} style={{ marginBottom:12 }}>
+              <label style={css.lbl}>{l}</label>
+              <input value={form[k]||""} onChange={e=>setF(k,e.target.value)} style={css.inp} />
+            </div>
+          ))}
+
           <label style={css.lbl}>Inhalt</label>
           <textarea value={form.inhalt} onChange={e=>setF("inhalt",e.target.value)} style={{ ...css.inp, minHeight:100, resize:"vertical", marginBottom:12 }} />
           <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
