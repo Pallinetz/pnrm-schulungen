@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { VideoUploader } from "./components/VideoUploader";
 import { VideoPlayer } from "./components/VideoPlayer";
-import { getSignedVideoUrl } from "./lib/videoStorage";
+import { getSignedVideoUrl, deleteVideo } from "./lib/videoStorage";
 import { supabase } from "./lib/supabase";
 
 // ─── Farben & Design — PNRM Corporate ─────────────────────────────────────────
@@ -1112,31 +1112,42 @@ function WissenView({ isAdmin, showToast }) {
 
   const art = selected ? artikel.find(a=>a.id===selected) : null;
 
-  const saveArtikel = () => {
+  const saveArtikel = async () => {
     if (!form.titel.trim()) return;
+    const payload = { titel:form.titel, kategorie_id:form.kategorie_id||null, inhalt:form.inhalt, status:form.status||"Entwurf" };
     if (editing==="neu") {
-      setArtikel(a=>[...a,{ ...form, id:`w${Date.now()}`, dateien:[] }]);
+      const { data, error } = await supabase.from("wissen_artikel").insert(payload).select("*, wissen_dateien(*)").single();
+      if (error) { showToast(`Fehler: ${error.message}`); return; }
+      setArtikel(a=>[...a,{ ...data, dateien:data.wissen_dateien ?? [] }]);
       showToast("Artikel erstellt.");
     } else {
-      setArtikel(a=>a.map(x=>x.id===editing?{...x,...form}:x));
+      const { data, error } = await supabase.from("wissen_artikel").update(payload).eq("id",editing).select("*, wissen_dateien(*)").single();
+      if (error) { showToast(`Fehler: ${error.message}`); return; }
+      setArtikel(a=>a.map(x=>x.id===editing?{ ...data, dateien:data.wissen_dateien ?? [] }:x));
       showToast("Gespeichert.");
     }
     setEditing(null);
   };
 
-  const addVideo = (artikelId, { path, name }) => {
-    setArtikel(a=>a.map(x=>x.id===artikelId
-      ? { ...x, dateien:[...x.dateien,{ id:`d${Date.now()}`, name, typ:"video", url:path }] }
-      : x
-    ));
+  const deleteArtikel = async (id) => {
+    const { error } = await supabase.from("wissen_artikel").delete().eq("id",id);
+    if (error) { showToast(`Fehler: ${error.message}`); return; }
+    setArtikel(x=>x.filter(y=>y.id!==id));
+    showToast("Gelöscht.");
+  };
+
+  const addVideo = async (artikelId, { path, name }) => {
+    const { data, error } = await supabase.from("wissen_dateien").insert({ artikel_id:artikelId, name, typ:"video", url:path }).select().single();
+    if (error) { showToast(`Fehler: ${error.message}`); return; }
+    setArtikel(a=>a.map(x=>x.id===artikelId ? { ...x, dateien:[...x.dateien,data] } : x));
     showToast("Video angehängt.");
   };
 
-  const removeVideo = (artikelId, dateiId) => {
-    setArtikel(a=>a.map(x=>x.id===artikelId
-      ? { ...x, dateien:x.dateien.filter(d=>d.id!==dateiId) }
-      : x
-    ));
+  const removeVideo = async (artikelId, dateiId, url) => {
+    const { error } = await supabase.from("wissen_dateien").delete().eq("id",dateiId);
+    if (error) { showToast(`Fehler: ${error.message}`); return; }
+    setArtikel(a=>a.map(x=>x.id===artikelId ? { ...x, dateien:x.dateien.filter(d=>d.id!==dateiId) } : x));
+    deleteVideo(url).catch(console.error);
   };
 
   if (wissenLoading) return <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Wissensdatenbank wird geladen…</p>;
@@ -1149,10 +1160,10 @@ function WissenView({ isAdmin, showToast }) {
           <h2 style={{ margin:0, fontSize:20 }}>📚 Wissensdatenbank</h2>
         </div>
         {isAdmin && !selected && !editing && (
-          <button onClick={()=>{ setForm({titel:"",kategorie:"Pflege",inhalt:"",status:"Entwurf"}); setEditing("neu"); }} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Neuer Artikel</button>
+          <button onClick={()=>{ setForm({titel:"",kategorie_id:Object.keys(kategorieMap)[0]||"",inhalt:"",status:"Entwurf"}); setEditing("neu"); }} style={{ ...css.btn, fontSize:13, padding:"8px 14px" }}>+ Neuer Artikel</button>
         )}
         {isAdmin && selected && !editing && (
-          <button onClick={()=>{ setForm({titel:art.titel,kategorie:art.kategorie,inhalt:art.inhalt,status:art.status||"Entwurf"}); setEditing(selected); }} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>✏️ Bearbeiten</button>
+          <button onClick={()=>{ setForm({titel:art.titel,kategorie_id:art.kategorie_id||"",inhalt:art.inhalt,status:art.status||"Entwurf"}); setEditing(selected); }} style={{ ...css.btnSec, fontSize:13, padding:"8px 14px" }}>✏️ Bearbeiten</button>
         )}
       </div>
 
@@ -1167,8 +1178,8 @@ function WissenView({ isAdmin, showToast }) {
             </div>
             <div>
               <label style={css.lbl}>Kategorie</label>
-              <select value={form.kategorie} onChange={e=>setF("kategorie",e.target.value)} style={css.inp}>
-                {KATEGORIEN.map(k=><option key={k}>{k}</option>)}
+              <select value={form.kategorie_id} onChange={e=>setF("kategorie_id",e.target.value)} style={css.inp}>
+                {Object.entries(kategorieMap).map(([id,name])=><option key={id} value={id}>{name}</option>)}
               </select>
             </div>
             <div>
@@ -1198,7 +1209,7 @@ function WissenView({ isAdmin, showToast }) {
             <div key={d.id} style={{ position:"relative", marginBottom:8 }}>
               <WissenVideoBlock datei={d} />
               {isAdmin && (
-                <button onClick={()=>removeVideo(art.id,d.id)} style={{ ...css.btnDanger, position:"absolute", top:0, right:0, padding:"3px 9px", fontSize:12 }}>✕</button>
+                <button onClick={()=>removeVideo(art.id,d.id,d.url)} style={{ ...css.btnDanger, position:"absolute", top:0, right:0, padding:"3px 9px", fontSize:12 }}>✕</button>
               )}
             </div>
           ))}
@@ -1228,7 +1239,7 @@ function WissenView({ isAdmin, showToast }) {
                     {videos>0 && <span style={{ fontSize:12, color:C.blue, marginTop:4, display:"inline-block" }}>▶ {videos} Video{videos!==1?"s":""}</span>}
                   </div>
                   {isAdmin && (
-                    <button onClick={e=>{e.stopPropagation();setArtikel(x=>x.filter(y=>y.id!==a.id));showToast("Gelöscht.");}} style={{ ...css.btnDanger, padding:"5px 11px" }}>✕</button>
+                    <button onClick={e=>{e.stopPropagation();deleteArtikel(a.id);}} style={{ ...css.btnDanger, padding:"5px 11px" }}>✕</button>
                   )}
                 </div>
               </div>
