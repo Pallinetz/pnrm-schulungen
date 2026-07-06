@@ -617,12 +617,12 @@ Format:
 }
 
 // ─── Mitarbeiterverwaltung ────────────────────────────────────────────────────
-function buildInviteMail(name, email, url, app) {
+function buildInviteMail(name, email, password, app) {
   const subject = app === "schulungen"
-    ? "Einladung zu Schulungen & Wissen – Palliativ Netzwerk Rhein-Maas"
-    : "Einladung zur Raumplanung – Palliativ Netzwerk Rhein-Maas";
+    ? "Zugangsdaten – Schulungen & Wissen – Palliativ Netzwerk Rhein-Maas"
+    : "Zugangsdaten – Raumplanung – Palliativ Netzwerk Rhein-Maas";
   const label = app === "schulungen" ? "Schulungen & Wissen" : "Raumplanung";
-  const body = `Hallo ${name},\n\nich lade dich herzlich zu ${label} der Palliativ Netzwerk Rhein-Maas ein.\n\nBitte klicke auf folgenden Link, um dein Passwort zu setzen und dich anzumelden:\n${url}\n\nDer Link ist 7 Tage gültig.\n\n`;
+  const body = `Hallo ${name},\n\nhier sind deine Zugangsdaten für ${label} der Palliativ Netzwerk Rhein-Maas:\n\nE-Mail: ${email}\nEinmalpasswort: ${password}\n\nBitte melde dich unter https://pnrm-schulungen.vercel.app an. Direkt nach der ersten Anmeldung wirst du gebeten, ein eigenes Passwort zu vergeben.\n\n`;
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
@@ -712,7 +712,7 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
         });
         if (res.error) throw new Error(res.error.message);
         if (res.data?.error) throw new Error(res.data.error);
-        out.push({ name, email: row.email, url: res.data.url, ok: true });
+        out.push({ name, email: row.email, password: res.data.password, ok: true });
         if (onInviteSent) onInviteSent({ email: row.email, name, rolle, id: `bulk_${Date.now()}_${row.email}`, bestaetigt: false });
       } catch (err) {
         out.push({ name, email: row.email, error: err.message, ok: false });
@@ -722,8 +722,8 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
     setProcessing(false);
   };
 
-  const copyLink = url => navigator.clipboard.writeText(url);
-  const openMail = (name, email, url) => { window.location.href = buildInviteMail(name, email, url, "schulungen"); };
+  const copyPassword = password => navigator.clipboard.writeText(password);
+  const openMail = (name, email, password) => { window.location.href = buildInviteMail(name, email, password, "schulungen"); };
 
   return (
     <div style={{ fontFamily: FONT, color: C.text }}>
@@ -769,8 +769,8 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
               </div>
               {r.ok && (
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => copyLink(r.url)} style={{ ...css.btnSec, fontSize: 12, padding: "5px 10px" }}>Link kopieren</button>
-                  <button onClick={() => openMail(r.name, r.email, r.url)} style={{ ...css.btn, fontSize: 12, padding: "5px 10px" }}>In Outlook öffnen</button>
+                  <button onClick={() => copyPassword(r.password)} style={{ ...css.btnSec, fontSize: 12, padding: "5px 10px" }}>Passwort kopieren</button>
+                  <button onClick={() => openMail(r.name, r.email, r.password)} style={{ ...css.btn, fontSize: 12, padding: "5px 10px" }}>In Outlook öffnen</button>
                 </div>
               )}
             </div>
@@ -782,7 +782,7 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
         <button onClick={onClose} style={css.btnSec}>Schließen</button>
         {!results && rows.length > 0 && (
           <button onClick={createAll} disabled={processing} style={{ ...css.btn, opacity: processing ? 0.65 : 1 }}>
-            {processing ? "Erstelle Links…" : `${rows.length} Einladungslinks erstellen`}
+            {processing ? "Erstelle Zugänge…" : `${rows.length} Zugänge erstellen`}
           </button>
         )}
       </div>
@@ -794,7 +794,7 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
   const [form, setForm] = useState({ name:"", email:"", rolle:"user" });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [inviteUrl, setInviteUrl] = useState(null);
+  const [password, setPassword] = useState(null);
   const [copied, setCopied] = useState(false);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
@@ -809,19 +809,19 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      const url = res.data.url;
-      setInviteUrl(url);
-      setResult(`Link für ${form.email} erstellt.`);
+      const pw = res.data.password;
+      setPassword(pw);
+      setResult(`Zugang für ${form.email} erstellt.`);
       if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
-      window.location.href = buildInviteMail(form.name, form.email, url, "schulungen");
+      window.location.href = buildInviteMail(form.name, form.email, pw, "schulungen");
     } catch (e) {
       setResult(`Fehler: ${e.message}`);
     }
     setLoading(false);
   };
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(inviteUrl);
+  const copyPassword = () => {
+    navigator.clipboard.writeText(password);
     setCopied(true);
     setTimeout(()=>setCopied(false), 2000);
   };
@@ -832,12 +832,12 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
       {result
         ? <div>
             <div style={css.good}>{result}</div>
-            {inviteUrl && (
+            {password && (
               <div style={{ marginTop:14 }}>
-                <p style={{ fontSize:13, color:C.muted, margin:"0 0 8px" }}>Outlook sollte sich mit fertigem Einladungstext geöffnet haben. Falls nicht, Link manuell kopieren:</p>
+                <p style={{ fontSize:13, color:C.muted, margin:"0 0 8px" }}>Outlook sollte sich mit Zugangsdaten (E-Mail + Einmalpasswort) geöffnet haben. Falls nicht, Passwort manuell kopieren:</p>
                 <div style={{ display:"flex", gap:8 }}>
-                  <input readOnly value={inviteUrl} style={{ ...css.inp, fontSize:12, flex:1 }} onClick={e=>e.target.select()} />
-                  <button onClick={copyLink} style={{ ...css.btnSec, padding:"8px 14px", fontSize:13 }}>{copied?"Kopiert!":"Kopieren"}</button>
+                  <input readOnly value={password} style={{ ...css.inp, fontSize:12, flex:1 }} onClick={e=>e.target.select()} />
+                  <button onClick={copyPassword} style={{ ...css.btnSec, padding:"8px 14px", fontSize:13 }}>{copied?"Kopiert!":"Kopieren"}</button>
                 </div>
               </div>
             )}
@@ -897,9 +897,9 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user }) {
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      const url = res.data.url;
-      showToast(`Link für ${email} erstellt – Outlook öffnet sich.`);
-      window.location.href = buildInviteMail(name, email, url, "schulungen");
+      const password = res.data.password;
+      showToast(`Neues Einmalpasswort für ${email} erstellt – Outlook öffnet sich.`);
+      window.location.href = buildInviteMail(name, email, password, "schulungen");
     } catch (e) {
       showToast(`Fehler: ${e.message}`);
     }
@@ -1263,14 +1263,21 @@ export default function App() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetResult, setResetResult] = useState(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPassword2, setNewPassword2] = useState("");
+  const [pwChangeError, setPwChangeError] = useState(null);
+  const [pwChangeLoading, setPwChangeLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      setMustChangePassword(session?.user?.user_metadata?.must_change_password === true);
       if (session?.user) checkAdmin(session.user.email);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setMustChangePassword(session?.user?.user_metadata?.must_change_password === true);
       if (session?.user) checkAdmin(session.user.email);
       else setIsAdmin(false);
     });
@@ -1352,6 +1359,31 @@ export default function App() {
           )}
           <p style={{ textAlign:"center", fontSize:12, color:C.muted, marginTop:20 }}>Zugang nur auf Einladung · Fragen an das Admin-Team</p>
         </div>
+      </div>
+    </div>
+  );
+
+  if (mustChangePassword) return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:FONT, color:C.text, background:C.bg, padding:24 }}>
+      <div style={{ width:"100%", maxWidth:400, background:C.white, borderRadius:16, padding:"36px 34px", boxShadow:"0 1px 2px rgba(22,35,58,.05), 0 12px 40px rgba(46,75,110,.1)", border:`1px solid ${C.border}` }}>
+        <h2 style={{ margin:"0 0 8px", fontSize:20, fontWeight:700, letterSpacing:"-0.01em" }}>Neues Passwort festlegen</h2>
+        <p style={{ margin:"0 0 18px", fontSize:14, color:C.muted, lineHeight:1.55 }}>Du hast dich mit einem Einmalpasswort angemeldet. Bitte lege jetzt dein eigenes Passwort fest.</p>
+        <form onSubmit={async e=>{
+          e.preventDefault();
+          setPwChangeError(null);
+          if (newPassword.length < 8) { setPwChangeError("Mindestens 8 Zeichen."); return; }
+          if (newPassword !== newPassword2) { setPwChangeError("Passwörter stimmen nicht überein."); return; }
+          setPwChangeLoading(true);
+          const { error } = await supabase.auth.updateUser({ password: newPassword, data: { must_change_password: false } });
+          setPwChangeLoading(false);
+          if (error) { setPwChangeError(error.message); return; }
+          setMustChangePassword(false);
+        }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div><label style={css.lbl}>Neues Passwort</label><input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} required autoComplete="new-password" style={{ ...css.inp, padding:"12px 16px" }} /></div>
+          <div><label style={css.lbl}>Passwort wiederholen</label><input type="password" value={newPassword2} onChange={e=>setNewPassword2(e.target.value)} required autoComplete="new-password" style={{ ...css.inp, padding:"12px 16px" }} /></div>
+          {pwChangeError && <p style={{ margin:0, fontSize:13, color:C.bad.text }}>{pwChangeError}</p>}
+          <button type="submit" disabled={pwChangeLoading} style={{ ...css.btn, padding:"12px 16px", fontSize:14.5, width:"100%", marginTop:4, opacity:pwChangeLoading?0.65:1 }}>{pwChangeLoading?"Speichern…":"Passwort speichern"}</button>
+        </form>
       </div>
     </div>
   );

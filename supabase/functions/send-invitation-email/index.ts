@@ -9,6 +9,11 @@ const corsHeaders = {
 const ok  = (data: unknown) => new Response(JSON.stringify(data),           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
 const err = (msg: string)   => new Response(JSON.stringify({ error: msg }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
 
+// ponytail: 10 Hex-Zeichen (~40 Bit) reichen für ein Einmalpasswort, das sofort geändert werden muss.
+function generatePassword() {
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 10)
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
@@ -37,16 +42,28 @@ serve(async (req) => {
     if (maError) return err("Admin-Check fehlgeschlagen: " + maError.message)
     if (maDaten?.rolle !== "admin") return err(`Nur Admins können einladen (Rolle: ${maDaten?.rolle ?? "kein Eintrag"})`)
 
-    // Einladungslink generieren
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "invite",
-      email,
-      options: { redirectTo: "https://pnrm-schulungen.vercel.app" },
-    })
-    if (linkError) return err("Link-Fehler: " + linkError.message)
+    // Einmalpasswort setzen: neuen Auth-User anlegen oder bestehenden aktualisieren
+    const password = generatePassword()
+    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+    if (listError) return err("Nutzer-Suche fehlgeschlagen: " + listError.message)
+    const existingAuthUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
 
-    const inviteUrl = linkData.properties?.action_link
-    if (!inviteUrl) return err("Kein Einladungslink erhalten")
+    if (existingAuthUser) {
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingAuthUser.id, {
+        password,
+        email_confirm: true,
+        user_metadata: { ...existingAuthUser.user_metadata, must_change_password: true },
+      })
+      if (updateError) return err("Passwort-Update fehlgeschlagen: " + updateError.message)
+    } else {
+      const { error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { must_change_password: true },
+      })
+      if (createError) return err("Nutzer-Erstellung fehlgeschlagen: " + createError.message)
+    }
 
     // Mitarbeiter-Eintrag anlegen / aktualisieren
     const record: Record<string, string> = { email, name: name || email, rolle: rolle || "user" }
@@ -61,7 +78,7 @@ serve(async (req) => {
       await supabaseAdmin.from("mitarbeiter").update(record).eq("email", email)
     }
 
-    return ok({ success: true, inviteUrl })
+    return ok({ success: true, password })
 
   } catch (e) {
     return err("Unbekannter Fehler: " + e.message)
