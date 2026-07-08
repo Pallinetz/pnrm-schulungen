@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
 
     if (action === 'redeem_invite') {
       const { token, password } = body
-      if (!password || password.length < 8) throw new Error('Das Passwort muss mindestens 8 Zeichen lang sein.')
+      if (!password || password.length < 12) throw new Error('Das Passwort muss mindestens 12 Zeichen lang sein.')
 
       const { data: invite, error: invErr } = await admin.from('invite_tokens').select('*').eq('token', token).single()
       if (invErr || !invite) throw new Error('Diese Einladung wurde nicht gefunden.')

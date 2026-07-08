@@ -1265,6 +1265,35 @@ function exportExcel(schulungen, ma) {
   XLSX.writeFile(wb,`PNRM_Schulungen_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
+function EyeIcon({ off }) {
+  return off ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.8 21.8 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function PwField({ label, value, onChange, placeholder, autoFocus, autoComplete }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div>
+      <label style={css.lbl}>{label}</label>
+      <div style={{ position:"relative" }}>
+        <input type={show?"text":"password"} value={value} onChange={onChange} placeholder={placeholder} required autoFocus={autoFocus} autoComplete={autoComplete} style={{ ...css.inp, padding:"12px 42px 12px 16px" }} />
+        <button type="button" onClick={()=>setShow(s=>!s)} aria-label={show?"Passwort verbergen":"Passwort anzeigen"} style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", padding:6, display:"flex", color:C.muted }}>
+          <EyeIcon off={show} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SetPasswordView({ token, onDone }) {
   const [status, setStatus] = useState("loading"); // loading | ready | error | success
   const [invite, setInvite] = useState(null);
@@ -1288,7 +1317,7 @@ function SetPasswordView({ token, onDone }) {
   const submit = async e => {
     e.preventDefault();
     setSubmitErr(null);
-    if (pw1.length < 8) { setSubmitErr("Das Passwort muss mindestens 8 Zeichen lang sein."); return; }
+    if (pw1.length < 12) { setSubmitErr("Das Passwort muss mindestens 12 Zeichen lang sein."); return; }
     if (pw1 !== pw2) { setSubmitErr("Die Passwörter stimmen nicht überein."); return; }
     setSubmitting(true);
     try {
@@ -1327,8 +1356,8 @@ function SetPasswordView({ token, onDone }) {
             <h2 style={{ margin:"0 0 4px", fontSize:19, fontWeight:700, letterSpacing:"-0.01em" }}>Willkommen, {invite.name.split(" ")[0]}!</h2>
             <p style={{ margin:"0 0 22px", fontSize:14, color:C.muted }}>Lege ein Passwort für <strong style={{ color:C.text }}>{invite.email}</strong> fest.</p>
             <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              <div><label style={css.lbl}>Neues Passwort</label><input type="password" value={pw1} onChange={e=>setPw1(e.target.value)} placeholder="Mindestens 8 Zeichen" required autoFocus style={{ ...css.inp, padding:"12px 16px" }} /></div>
-              <div><label style={css.lbl}>Passwort bestätigen</label><input type="password" value={pw2} onChange={e=>setPw2(e.target.value)} placeholder="Wiederholen" required style={{ ...css.inp, padding:"12px 16px" }} /></div>
+              <PwField label="Neues Passwort" value={pw1} onChange={e=>setPw1(e.target.value)} placeholder="Mindestens 12 Zeichen" autoFocus autoComplete="new-password" />
+              <PwField label="Passwort bestätigen" value={pw2} onChange={e=>setPw2(e.target.value)} placeholder="Wiederholen" autoComplete="new-password" />
               {submitErr && <p style={{ margin:0, fontSize:13, color:C.bad.text }}>{submitErr}</p>}
               <button type="submit" disabled={submitting} style={{ ...css.btn, padding:"12px 16px", fontSize:14.5, width:"100%", marginTop:4, opacity:submitting?0.65:1 }}>{submitting?"Wird gespeichert…":"Passwort setzen & anmelden"}</button>
             </div>
@@ -1466,7 +1495,7 @@ export default function App() {
               <p style={{ margin:"0 0 22px", fontSize:14, color:C.muted }}>Mit deinem PNRM-Konto fortfahren</p>
               <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
                 <div><label style={css.lbl}>E-Mail</label><input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="vorname.nachname@pallinetz.de" required autoComplete="email" style={{ ...css.inp, padding:"12px 16px" }} /></div>
-                <div><label style={css.lbl}>Passwort</label><input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password" style={{ ...css.inp, padding:"12px 16px" }} /></div>
+                <PwField label="Passwort" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
                 {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
                 <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"12px 16px", fontSize:14.5, width:"100%", marginTop:4, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
                 <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.blueAccent, cursor:"pointer", fontSize:13, padding:0, textAlign:"center", fontFamily:FONT }}>Passwort vergessen?</button>
