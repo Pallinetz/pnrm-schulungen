@@ -41,6 +41,11 @@ const SEED_MA = [
 const KATEGORIEN = ["Pflege","Medizin","Recht & Compliance","QM","Kommunikation","Notfallmanagement"];
 const ROLLEN = ["Arzt / Ärztin","Pflegefachkraft","Alltagsbegleiter/in","Koordination","Verwaltung","Leitung","Geschäftsführung"];
 const PROFILE = ["Palliativ Fachpflegekraft", "Büro", "Alltagsbegleitung"];
+function matchProfil(text) {
+  const t = (text || "").trim().toLowerCase();
+  if (!t) return "";
+  return PROFILE.find(p => p.toLowerCase() === t) || "";
+}
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const css = {
@@ -613,6 +618,8 @@ function buildInviteMail(name, email, url, app) {
 }
 
 
+// Feste Spaltenreihenfolge: Nachname, Vorname, E-Mail, Abteilung. Erste Zeile
+// gilt immer als Kopfzeile und wird übersprungen (Inhalt egal).
 function parseImportFile(file) {
   return new Promise((resolve, reject) => {
     const isCsv = /\.csv$/i.test(file.name);
@@ -626,32 +633,24 @@ function parseImportFile(file) {
           const lines = text.split(/\r?\n/).filter(l => l.trim());
           if (!lines.length) return resolve([]);
           const delim = lines[0].includes(";") ? ";" : ",";
-          const header = lines[0].split(delim).map(h => h.trim().toLowerCase());
-          const idxV = header.findIndex(h => h.includes("vorname"));
-          const idxN = header.findIndex(h => h.includes("nachname") || (h.includes("name") && !h.includes("vorname") && !h.includes("nutzername")));
-          const idxE = header.findIndex(h => h.includes("mail"));
           rows = lines.slice(1).map(line => {
             const c = line.split(delim);
             return {
-              vorname: idxV > -1 ? (c[idxV] || "").trim() : "",
-              nachname: idxN > -1 ? (c[idxN] || "").trim() : "",
-              email: idxE > -1 ? (c[idxE] || "").trim() : "",
+              nachname: (c[0] || "").trim(),
+              vorname: (c[1] || "").trim(),
+              email: (c[2] || "").trim(),
+              abteilung: (c[3] || "").trim(),
             };
           });
         } else {
           const wb = XLSX.read(ev.target.result, { type: "binary" });
-          const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-          rows = json.map(r => {
-            const keys = Object.keys(r);
-            const kV = keys.find(k => k.toLowerCase().includes("vorname"));
-            const kN = keys.find(k => k.toLowerCase().includes("nachname") || (k.toLowerCase().includes("name") && !k.toLowerCase().includes("vorname")));
-            const kE = keys.find(k => k.toLowerCase().includes("mail"));
-            return {
-              vorname: kV ? String(r[kV] || "").trim() : "",
-              nachname: kN ? String(r[kN] || "").trim() : "",
-              email: kE ? String(r[kE] || "").trim() : "",
-            };
-          });
+          const raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+          rows = raw.slice(1).map(c => ({
+            nachname: String(c?.[0] ?? "").trim(),
+            vorname: String(c?.[1] ?? "").trim(),
+            email: String(c?.[2] ?? "").trim(),
+            abteilung: String(c?.[3] ?? "").trim(),
+          }));
         }
         resolve(rows.filter(r => r.email && r.email.includes("@")));
       } catch (e) {
@@ -666,7 +665,6 @@ function parseImportFile(file) {
 function BulkInviteModal({ onClose, showToast, onInviteSent }) {
   const [rows, setRows] = useState([]);
   const [rolle, setRolle] = useState("user");
-  const [profil, setProfil] = useState("");
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState(null);
   const fileRef = useRef();
@@ -692,6 +690,7 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
     const out = [];
     for (const row of rows) {
       const name = `${row.vorname} ${row.nachname}`.trim() || row.email;
+      const profil = matchProfil(row.abteilung);
       try {
         const res = await supabase.functions.invoke("send-invitation-email", {
           body: { action: "create_link_schulungen", email: row.email, name, rolle, profil },
@@ -715,7 +714,7 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
   return (
     <div style={{ fontFamily: FONT, color: C.text }}>
       <h2 style={{ margin: "0 0 6px", fontSize: 20 }}>Mehrere Mitarbeiter einladen</h2>
-      <p style={{ margin: "0 0 16px", fontSize: 13, color: C.muted }}>CSV oder Excel mit Spalten Vorname, Nachname, E-Mail hochladen.</p>
+      <p style={{ margin: "0 0 16px", fontSize: 13, color: C.muted }}>CSV oder Excel hochladen, erste Zeile Kopfzeile, danach feste Spaltenreihenfolge: <strong>Nachname, Vorname, E-Mail, Abteilung</strong>.</p>
 
       {!results && (
         <>
@@ -723,27 +722,32 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
             <button onClick={() => fileRef.current.click()} style={{ ...css.btnSec, fontSize: 13, padding: "8px 14px" }}>📁 Datei auswählen</button>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={{ display: "none" }} />
             {rows.length > 0 && <span style={{ fontSize: 13, color: C.muted }}>{rows.length} Person{rows.length !== 1 ? "en" : ""} erkannt</span>}
-            <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <div style={{ marginLeft: "auto" }}>
               <select value={rolle} onChange={e => setRolle(e.target.value)} style={{ ...css.inp, fontSize: 13, padding: "6px 10px" }}>
                 <option value="user">Alle als Nutzer</option>
                 <option value="admin">Alle als Admin</option>
-              </select>
-              <select value={profil} onChange={e => setProfil(e.target.value)} style={{ ...css.inp, fontSize: 13, padding: "6px 10px" }}>
-                <option value="">Alle: kein Profil</option>
-                {PROFILE.map(p => <option key={p} value={p}>Alle: {p}</option>)}
               </select>
             </div>
           </div>
 
           {rows.length > 0 && (
             <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
-              {rows.map((r, i) => (
+              {rows.map((r, i) => {
+                const profil = matchProfil(r.abteilung);
+                return (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: i < rows.length - 1 ? `1px solid ${C.border}` : "none" }}>
                   <div style={{ flex: 1, fontSize: 13 }}><strong>{r.vorname} {r.nachname}</strong></div>
                   <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{r.email}</div>
+                  <div style={{ flex: 1, fontSize: 12 }}>
+                    {r.abteilung && (profil
+                      ? <span style={{ background: "#f3f4f6", color: "#6b7280", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>{profil}</span>
+                      : <span style={{ color: C.warn.text }}>„{r.abteilung}" unbekannt – kein Profil</span>
+                    )}
+                  </div>
                   <button onClick={() => removeRow(i)} style={{ ...css.btnDanger, padding: "3px 9px", fontSize: 12 }}>✕</button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>
@@ -1042,7 +1046,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
       )}
 
       <div style={{ marginTop: 14, padding: "10px 14px", background: "#fbfcff", border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.muted }}>
-        Import-Format (.csv, .xlsx, .xls): Spalten <strong style={{ color: C.text }}>Vorname, Nachname, E-Mail</strong>
+        Import-Format (.csv, .xlsx, .xls), erste Zeile Kopfzeile, feste Spaltenreihenfolge: <strong style={{ color: C.text }}>Nachname, Vorname, E-Mail, Abteilung</strong>
       </div>
     </div>
   );
