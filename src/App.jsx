@@ -40,6 +40,7 @@ const SEED_MA = [
 
 const KATEGORIEN = ["Pflege","Medizin","Recht & Compliance","QM","Kommunikation","Notfallmanagement"];
 const ROLLEN = ["Arzt / Ärztin","Pflegefachkraft","Alltagsbegleiter/in","Koordination","Verwaltung","Leitung","Geschäftsführung"];
+const PROFILE = ["Palliativ Fachpflegekraft", "Büro", "Alltagsbegleitung"];
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const css = {
@@ -665,6 +666,7 @@ function parseImportFile(file) {
 function BulkInviteModal({ onClose, showToast, onInviteSent }) {
   const [rows, setRows] = useState([]);
   const [rolle, setRolle] = useState("user");
+  const [profil, setProfil] = useState("");
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState(null);
   const fileRef = useRef();
@@ -692,13 +694,13 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
       const name = `${row.vorname} ${row.nachname}`.trim() || row.email;
       try {
         const res = await supabase.functions.invoke("send-invitation-email", {
-          body: { action: "create_link_schulungen", email: row.email, name, rolle },
+          body: { action: "create_link_schulungen", email: row.email, name, rolle, profil },
           headers: { Authorization: `Bearer ${session.access_token}` }
         });
         if (res.error) throw new Error(res.error.message);
         if (res.data?.error) throw new Error(res.data.error);
         out.push({ name, email: row.email, url: res.data.url, ok: true });
-        if (onInviteSent) onInviteSent({ email: row.email, name, rolle, id: `bulk_${Date.now()}_${row.email}`, bestaetigt: false });
+        if (onInviteSent) onInviteSent({ email: row.email, name, rolle, profil, id: `bulk_${Date.now()}_${row.email}`, bestaetigt: false });
       } catch (err) {
         out.push({ name, email: row.email, error: err.message, ok: false });
       }
@@ -721,10 +723,14 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
             <button onClick={() => fileRef.current.click()} style={{ ...css.btnSec, fontSize: 13, padding: "8px 14px" }}>📁 Datei auswählen</button>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={{ display: "none" }} />
             {rows.length > 0 && <span style={{ fontSize: 13, color: C.muted }}>{rows.length} Person{rows.length !== 1 ? "en" : ""} erkannt</span>}
-            <div style={{ marginLeft: "auto" }}>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
               <select value={rolle} onChange={e => setRolle(e.target.value)} style={{ ...css.inp, fontSize: 13, padding: "6px 10px" }}>
                 <option value="user">Alle als Nutzer</option>
                 <option value="admin">Alle als Admin</option>
+              </select>
+              <select value={profil} onChange={e => setProfil(e.target.value)} style={{ ...css.inp, fontSize: 13, padding: "6px 10px" }}>
+                <option value="">Alle: kein Profil</option>
+                {PROFILE.map(p => <option key={p} value={p}>Alle: {p}</option>)}
               </select>
             </div>
           </div>
@@ -776,7 +782,7 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
 }
 
 function InviteModal({ onClose, showToast, onInviteSent }) {
-  const [form, setForm] = useState({ name:"", email:"", rolle:"user" });
+  const [form, setForm] = useState({ name:"", email:"", rolle:"user", profil:"" });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [inviteUrl, setInviteUrl] = useState(null);
@@ -789,7 +795,7 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("send-invitation-email", {
-        body: { action:"create_link_schulungen", email: form.email, name: form.name, rolle: form.rolle },
+        body: { action:"create_link_schulungen", email: form.email, name: form.name, rolle: form.rolle, profil: form.profil },
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
       if (res.error) throw new Error(res.error.message);
@@ -797,7 +803,7 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
       const url = res.data.url;
       setInviteUrl(url);
       setResult(`Link für ${form.email} erstellt.`);
-      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, id: `sent_${Date.now()}`, bestaetigt: false });
+      if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, profil: form.profil, id: `sent_${Date.now()}`, bestaetigt: false });
       window.location.href = buildInviteMail(form.name, form.email, url, "schulungen");
     } catch (e) {
       setResult(`Fehler: ${e.message}`);
@@ -831,6 +837,7 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
             <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} placeholder="Vor- und Nachname" /></div>
             <div><label style={css.lbl}>E-Mail</label><input type="email" value={form.email} onChange={e=>set("email",e.target.value)} style={css.inp} placeholder="email@pallinetz.de" /></div>
             <div><label style={css.lbl}>Zugriff</label><select value={form.rolle} onChange={e=>set("rolle",e.target.value)} style={css.inp}><option value="user">Nutzer – nur Schulungen ansehen</option><option value="admin">Admin – Schulungen verwalten & Mitarbeiter einladen</option></select></div>
+            <div><label style={css.lbl}>Profil</label><select value={form.profil} onChange={e=>set("profil",e.target.value)} style={css.inp}><option value="">– kein Profil –</option>{PROFILE.map(p=><option key={p} value={p}>{p}</option>)}</select></div>
           </div>
       }
       <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:18 }}>
@@ -841,12 +848,21 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
   );
 }
 
-function MitarbeiterView({ ma, setMa, showToast, isAdmin, user, onRefresh }) {
+function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [resending, setResending] = useState(null);
+  const [savingId, setSavingId] = useState(null);
   const fileRef = useRef();
+
+  const updateMitarbeiter = async (id, patch) => {
+    setSavingId(id);
+    const { error } = await supabase.from("mitarbeiter").update(patch).eq("id", id);
+    if (error) { showToast(`Fehler: ${error.message}`); setSavingId(null); return; }
+    setMa(m => m.map(x => x.id === id ? { ...x, ...patch } : x));
+    setSavingId(null);
+  };
 
   const importCSV = e => {
     const file = e.target.files[0];
@@ -928,16 +944,43 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user, onRefresh }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{m.name}</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{m.email}</div>
-                  <div style={{ fontSize: 11, marginTop: 4, display: "flex", gap: 8, alignItems: "center" }}>
-                    <span style={{
-                      background: m.rolle === "admin" ? C.blueDim : "#f3f4f6",
-                      color: m.rolle === "admin" ? C.blue : "#6b7280",
-                      padding: "1px 7px",
-                      borderRadius: 20,
-                      fontWeight: 700,
-                    }}>
-                      {m.rolle === "admin" ? "Admin" : "Nutzer"}
-                    </span>
+                  <div style={{ fontSize: 11, marginTop: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    {isSuperAdmin ? (
+                      <select
+                        value={m.rolle}
+                        disabled={m.email === user.email || savingId === m.id}
+                        title={m.email === user.email ? "Eigene Rolle nicht über die eigene Ansicht änderbar" : undefined}
+                        onChange={e => updateMitarbeiter(m.id, { rolle: e.target.value })}
+                        style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 8, border: `1px solid ${C.border}`, color: C.blue, background: C.blueDim }}
+                      >
+                        <option value="user">Nutzer</option>
+                        <option value="admin">Admin</option>
+                        <option value="super_admin">Super-Admin</option>
+                      </select>
+                    ) : (
+                      <span style={{
+                        background: m.rolle === "admin" || m.rolle === "super_admin" ? C.blueDim : "#f3f4f6",
+                        color: m.rolle === "admin" || m.rolle === "super_admin" ? C.blue : "#6b7280",
+                        padding: "1px 7px",
+                        borderRadius: 20,
+                        fontWeight: 700,
+                      }}>
+                        {m.rolle === "super_admin" ? "Super-Admin" : m.rolle === "admin" ? "Admin" : "Nutzer"}
+                      </span>
+                    )}
+                    {isSuperAdmin ? (
+                      <select
+                        value={m.profil || ""}
+                        disabled={savingId === m.id}
+                        onChange={e => updateMitarbeiter(m.id, { profil: e.target.value || null })}
+                        style={{ fontSize: 11, fontWeight: 600, padding: "2px 6px", borderRadius: 8, border: `1px solid ${C.border}`, color: "#6b7280", background: "#f3f4f6" }}
+                      >
+                        <option value="">– kein Profil –</option>
+                        {PROFILE.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    ) : m.profil ? (
+                      <span style={{ background: "#f3f4f6", color: "#6b7280", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>{m.profil}</span>
+                    ) : null}
                     {bestaetigt
                       ? <span style={{ color: C.muted }}>✓ Bestätigt</span>
                       : <span style={{ color: "#f59e0b", fontWeight: 600 }}>⏳ Einladung ausstehend</span>
@@ -999,6 +1042,93 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, user, onRefresh }) {
     </div>
   );
 }
+
+// ─── Fortschritt (nur Super-Admin) ────────────────────────────────────────────
+function FortschrittView({ schulungen, ma }) {
+  const [sortBy, setSortBy] = useState("pct");
+
+  const rows = ma.map(m => {
+    const assigned = schulungen.filter(s => (s.empfaenger||[]).includes(m.id));
+    const done = assigned.filter(s => s.nachweise?.[m.id]);
+    const open = assigned.filter(s => !s.nachweise?.[m.id]);
+    const pct = assigned.length ? Math.round((done.length/assigned.length)*100) : null;
+    return { m, assigned, done, open, pct };
+  });
+  const sorted = [...rows].sort((a,b) => {
+    if (sortBy === "name") return a.m.name.localeCompare(b.m.name);
+    if (a.pct===null && b.pct===null) return a.m.name.localeCompare(b.m.name);
+    if (a.pct===null) return 1;
+    if (b.pct===null) return -1;
+    return a.pct - b.pct;
+  });
+  const gesamtAssigned = rows.reduce((sum,r)=>sum+r.assigned.length,0);
+  const gesamtDone = rows.reduce((sum,r)=>sum+r.done.length,0);
+  const gesamtPct = gesamtAssigned ? Math.round((gesamtDone/gesamtAssigned)*100) : 0;
+
+  return (
+    <div style={{ fontFamily: FONT }}>
+      <h2 style={{ margin: "0 0 4px", fontSize: 20 }}>📊 Fortschritt</h2>
+      <p style={{ margin: "0 0 18px", fontSize: 13, color: C.muted }}>Wer hat welche zugewiesenen Schulungen abgeschlossen, wer hat noch offene.</p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, marginBottom: 20, overflow: "hidden" }}>
+        {[["Zuweisungen gesamt", gesamtAssigned],["Abgeschlossen", gesamtDone],["Quote gesamt", `${gesamtPct}%`]].map(([l,v],i)=>(
+          <div key={l} style={{ padding: "14px 18px", borderLeft: i>0?`1px solid ${C.border}`:"none" }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{v}</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2, textTransform: "uppercase", letterSpacing: ".5px" }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {[["pct","Niedrigste Quote zuerst"],["name","Nach Name"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setSortBy(id)} style={{ background: sortBy===id?C.navy:"transparent", color: sortBy===id?C.white:C.muted, border:`1px solid ${sortBy===id?C.navy:C.border}`, padding:"5px 13px", borderRadius:999, cursor:"pointer", fontSize:13, fontFamily:FONT }}>{label}</button>
+        ))}
+      </div>
+
+      {ma.length===0 && <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Noch keine Mitarbeiter.</p>}
+
+      {sorted.map(({ m, assigned, done, open, pct }) => (
+        <details key={m.id} style={{ ...css.section, padding: "12px 16px" }}>
+          <summary style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <div>
+              <strong style={{ fontSize: 14 }}>{m.name}</strong>
+              <span style={{ color: C.muted, fontSize: 12, marginLeft: 10 }}>{m.email}{m.profil?` · ${m.profil}`:""}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 12, color: C.muted }}>{done.length}/{assigned.length}</span>
+              <div style={{ width: 90, height: 8, background: "#e7edf7", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct ?? 0}%`, background: pct===null?C.border:pct===100?C.good.text:pct<50?C.bad.text:C.blueAccent, borderRadius: 999 }} />
+              </div>
+              <strong style={{ fontSize: 13, minWidth: 36, textAlign: "right" }}>{pct===null?"–":`${pct}%`}</strong>
+            </div>
+          </summary>
+          {assigned.length === 0 ? (
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: C.muted }}>Keine Schulungen zugewiesen.</p>
+          ) : (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+              {open.map(s => (
+                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 10px", background: C.warn.bg, border: `1px solid ${C.warn.border}`, borderRadius: 8 }}>
+                  <span>{s.titel}{s.pflicht?" · Pflicht":""}</span>
+                  <span style={{ color: C.warn.text, fontWeight: 600 }}>Offen</span>
+                </div>
+              ))}
+              {done.map(s => {
+                const nw = s.nachweise[m.id];
+                return (
+                  <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 10px", background: C.good.bg, border: `1px solid ${C.good.border}`, borderRadius: 8 }}>
+                    <span>{s.titel}</span>
+                    <span style={{ color: C.good.text, fontWeight: 600 }}>✓ {nw.ts||"–"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </details>
+      ))}
+    </div>
+  );
+}
+
 function SendModal({ sc, ma, onClose, onSend }) {
   const [sel, setSel] = useState(new Set(sc.empfaenger||[]));
   const [msg, setMsg] = useState(`Liebe Kolleginnen und Kollegen,\n\nbitte bearbeitet die Selbstlern-Unterweisung „${sc.titel}"${sc.pflicht?" (Pflichtschulung)":""}.\n\nNach Abschluss bitte den digitalen Nachweis absenden.\n\nViele Grüße`);
@@ -1388,6 +1518,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState(null);
@@ -1406,7 +1537,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) checkAdmin(session.user.email);
-      else setIsAdmin(false);
+      else { setIsAdmin(false); setIsSuperAdmin(false); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -1432,11 +1563,13 @@ export default function App() {
       // Angemeldet bei Supabase Auth, aber kein Eintrag in der Mitarbeiter-Tabelle
       // (z.B. Selbstregistrierung falls Auth-Signup nicht deaktiviert ist, oder entfernter Mitarbeiter).
       setIsAdmin(false);
+      setIsSuperAdmin(false);
       setLoginError("Dieses Konto ist nicht für die Schulungsplattform freigeschaltet. Bitte wende dich an das Admin-Team.");
       await supabase.auth.signOut();
       return;
     }
-    setIsAdmin(data.rolle === "admin");
+    setIsAdmin(data.rolle === "admin" || data.rolle === "super_admin");
+    setIsSuperAdmin(data.rolle === "super_admin");
   }
 
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),5000);};
@@ -1547,7 +1680,7 @@ export default function App() {
 
         {/* Tabs */}
         <div style={{ display:"flex", gap:2, borderBottom:`1px solid ${C.border}`, marginBottom:20 }}>
-          {[["schulungen","Schulungen"],["wissen","Wissen"],...(user?[["mitarbeiter","Mitarbeiter"]]:[])]  .map(([id,label])=>(
+          {[["schulungen","Schulungen"],["wissen","Wissen"],...(user?[["mitarbeiter","Mitarbeiter"]]:[]),...(isSuperAdmin?[["fortschritt","Fortschritt"]]:[])]  .map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} className="ptab" style={{ background: tab===id ? C.white : "none", border:`1px solid ${tab===id?C.border:"transparent"}`, borderBottom: tab===id ? `1px solid ${C.white}` : "1px solid transparent", borderRadius:"10px 10px 0 0", color:tab===id?C.navy:C.muted, padding:"10px 20px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:500, marginBottom:-1, fontFamily:FONT, transition:"color .15s, background .15s" }}>{label}</button>
           ))}
         </div>
@@ -1593,7 +1726,8 @@ export default function App() {
           })}
         </>}
         {tab==="wissen"&&<WissenView isAdmin={isAdmin} showToast={showToast} />}
-        {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} user={user} onRefresh={loadMitarbeiter} />}
+        {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} user={user} onRefresh={loadMitarbeiter} />}
+        {tab==="fortschritt"&&<FortschrittView schulungen={schulungen} ma={ma} />}
 
         <footer style={{ marginTop:48, paddingTop:20, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, paddingBottom:28 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>

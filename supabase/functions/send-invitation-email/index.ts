@@ -63,9 +63,9 @@ Deno.serve(async (req) => {
     if (authErr || !user) throw new Error('Nicht angemeldet')
 
     const { data: caller } = await admin.from('mitarbeiter').select('rolle').eq('email', user.email).single()
-    if (caller?.rolle !== 'admin') throw new Error('Nur Admins koennen Einladungen erstellen')
+    if (!['admin', 'super_admin'].includes(caller?.rolle)) throw new Error('Nur Admins koennen Einladungen erstellen')
 
-    const { email, name, rolle } = body
+    const { email, name, rolle, profil } = body
 
     const makeLink = async (app: string, baseUrl: string) => {
       const inviteToken = crypto.randomUUID()
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
 
       const id = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + '-' + Date.now().toString(36)
       const { error: dbErr } = await admin.from('mitarbeiter').upsert(
-        { id, email, name, rolle },
+        { id, email, name, rolle, profil: profil || null },
         { onConflict: 'email' }
       )
       if (dbErr) throw new Error(dbErr.message)
