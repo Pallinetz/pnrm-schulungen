@@ -856,7 +856,6 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
   const [savingId, setSavingId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [draft, setDraft] = useState({});
-  const fileRef = useRef();
 
   const updateMitarbeiter = async (id, patch) => {
     setSavingId(id);
@@ -875,30 +874,6 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
     if (isSuperAdmin) { patch.rolle = draft.rolle; patch.profil = draft.profil || null; }
     const ok = await updateMitarbeiter(m.id, patch);
     if (ok) { showToast("Gespeichert."); cancelEdit(); }
-  };
-
-  const importCSV = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const r = new FileReader();
-    r.onload = ev => {
-      const wb = XLSX.read(ev.target.result, { type: "binary" });
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      const imp = rows.map((r, i) => ({
-        id: `imp_${Date.now()}_${i}`,
-        name: r.Name || r.name || "",
-        email: r.Email || r.email || "",
-        rolle: "user",
-      })).filter(m => m.name && m.email);
-      setMa(m => {
-        const ex = new Set(m.map(x => x.email.toLowerCase()));
-        const news = imp.filter(x => !ex.has(x.email.toLowerCase()));
-        showToast(`${news.length} neue importiert.`);
-        return [...m, ...news];
-      });
-    };
-    r.readAsBinaryString(file);
-    e.target.value = "";
   };
 
   const resendInvite = async (email, name, rolle) => {
@@ -932,9 +907,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <h2 style={{ margin: 0, fontSize: 20 }}>👥 Mitarbeiter</h2>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => fileRef.current.click()} style={{ ...css.btnSec, fontSize: 13, padding: "8px 13px" }}>📥 Import CSV</button>
-          <input ref={fileRef} type="file" accept=".xlsx,.csv" onChange={importCSV} style={{ display: "none" }} />
-          {isAdmin && <button onClick={() => setBulkOpen(true)} style={{ ...css.btnSec, fontSize: 13, padding: "8px 14px" }}>📊 Mehrere per Excel/CSV</button>}
+          {isAdmin && <button onClick={() => setBulkOpen(true)} style={{ ...css.btnSec, fontSize: 13, padding: "8px 14px" }}>📊 Mitarbeiter importieren (Excel/CSV)</button>}
           {isAdmin && <button onClick={() => setInviteOpen(true)} style={{ ...css.btn, fontSize: 13, padding: "8px 14px" }}>+ Mitarbeiter einladen</button>}
         </div>
       </div>
@@ -1069,7 +1042,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
       )}
 
       <div style={{ marginTop: 14, padding: "10px 14px", background: "#fbfcff", border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.muted }}>
-        CSV-Format: Spalten <strong style={{ color: C.text }}>Name, Email</strong>
+        Import-Format (.csv, .xlsx, .xls): Spalten <strong style={{ color: C.text }}>Vorname, Nachname, E-Mail</strong>
       </div>
     </div>
   );
