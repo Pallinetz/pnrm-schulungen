@@ -854,14 +854,27 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
   const [bulkOpen, setBulkOpen] = useState(false);
   const [resending, setResending] = useState(null);
   const [savingId, setSavingId] = useState(null);
+  const [editId, setEditId] = useState(null);
+  const [draft, setDraft] = useState({});
   const fileRef = useRef();
 
   const updateMitarbeiter = async (id, patch) => {
     setSavingId(id);
     const { error } = await supabase.from("mitarbeiter").update(patch).eq("id", id);
-    if (error) { showToast(`Fehler: ${error.message}`); setSavingId(null); return; }
+    if (error) { showToast(`Fehler: ${error.message}`); setSavingId(null); return false; }
     setMa(m => m.map(x => x.id === id ? { ...x, ...patch } : x));
     setSavingId(null);
+    return true;
+  };
+
+  const startEdit = m => { setEditId(m.id); setDraft({ name: m.name, email: m.email, rolle: m.rolle, profil: m.profil || "" }); };
+  const cancelEdit = () => { setEditId(null); setDraft({}); };
+  const saveEdit = async m => {
+    if (!draft.name?.trim() || !draft.email?.trim()) { showToast("Name und E-Mail dürfen nicht leer sein."); return; }
+    const patch = { name: draft.name.trim(), email: draft.email.trim() };
+    if (isSuperAdmin) { patch.rolle = draft.rolle; patch.profil = draft.profil || null; }
+    const ok = await updateMitarbeiter(m.id, patch);
+    if (ok) { showToast("Gespeichert."); cancelEdit(); }
   };
 
   const importCSV = e => {
@@ -932,55 +945,69 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {ma.map(m => {
             const bestaetigt = m.bestaetigt || false;
+            const editing = editId === m.id;
             return (
               <div key={m.email || m.id} style={{
                 ...css.section,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
                 padding: "12px 14px",
                 borderLeft: `4px solid ${bestaetigt ? C.blue : "#fbbf24"}`,
               }}>
+              {editing ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div><label style={css.lbl}>Name</label><input value={draft.name} onChange={e=>setDraft(d=>({...d,name:e.target.value}))} style={css.inp} /></div>
+                    <div>
+                      <label style={css.lbl}>E-Mail</label>
+                      <input type="email" value={draft.email} onChange={e=>setDraft(d=>({...d,email:e.target.value}))} style={css.inp} />
+                      {draft.email !== m.email && <div style={{ fontSize:11, color:C.warn.text, marginTop:3 }}>Hinweis: der Login-Zugang bleibt an die bisherige Adresse gebunden – bei dauerhafter Änderung ggf. neu einladen.</div>}
+                    </div>
+                  </div>
+                  {isSuperAdmin && (
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <div>
+                        <label style={css.lbl}>Rolle</label>
+                        <select
+                          value={draft.rolle}
+                          disabled={m.email === user.email}
+                          title={m.email === user.email ? "Eigene Rolle nicht über die eigene Ansicht änderbar" : undefined}
+                          onChange={e=>setDraft(d=>({...d,rolle:e.target.value}))}
+                          style={{ ...css.inp, padding:"6px 10px", fontSize:13 }}
+                        >
+                          <option value="user">Nutzer</option>
+                          <option value="admin">Admin</option>
+                          <option value="super_admin">Super-Admin</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={css.lbl}>Profil</label>
+                        <select value={draft.profil} onChange={e=>setDraft(d=>({...d,profil:e.target.value}))} style={{ ...css.inp, padding:"6px 10px", fontSize:13 }}>
+                          <option value="">– kein Profil –</option>
+                          {PROFILE.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button onClick={cancelEdit} style={{ ...css.btnSec, padding: "6px 13px", fontSize: 13 }}>Abbrechen</button>
+                    <button onClick={()=>saveEdit(m)} disabled={savingId===m.id} style={{ ...css.btn, padding: "6px 13px", fontSize: 13, opacity: savingId===m.id?0.65:1 }}>{savingId===m.id?"Speichert…":"Speichern"}</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{m.name}</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{m.email}</div>
                   <div style={{ fontSize: 11, marginTop: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    {isSuperAdmin ? (
-                      <select
-                        value={m.rolle}
-                        disabled={m.email === user.email || savingId === m.id}
-                        title={m.email === user.email ? "Eigene Rolle nicht über die eigene Ansicht änderbar" : undefined}
-                        onChange={e => updateMitarbeiter(m.id, { rolle: e.target.value })}
-                        style={{ fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 8, border: `1px solid ${C.border}`, color: C.blue, background: C.blueDim }}
-                      >
-                        <option value="user">Nutzer</option>
-                        <option value="admin">Admin</option>
-                        <option value="super_admin">Super-Admin</option>
-                      </select>
-                    ) : (
-                      <span style={{
-                        background: m.rolle === "admin" || m.rolle === "super_admin" ? C.blueDim : "#f3f4f6",
-                        color: m.rolle === "admin" || m.rolle === "super_admin" ? C.blue : "#6b7280",
-                        padding: "1px 7px",
-                        borderRadius: 20,
-                        fontWeight: 700,
-                      }}>
-                        {m.rolle === "super_admin" ? "Super-Admin" : m.rolle === "admin" ? "Admin" : "Nutzer"}
-                      </span>
-                    )}
-                    {isSuperAdmin ? (
-                      <select
-                        value={m.profil || ""}
-                        disabled={savingId === m.id}
-                        onChange={e => updateMitarbeiter(m.id, { profil: e.target.value || null })}
-                        style={{ fontSize: 11, fontWeight: 600, padding: "2px 6px", borderRadius: 8, border: `1px solid ${C.border}`, color: "#6b7280", background: "#f3f4f6" }}
-                      >
-                        <option value="">– kein Profil –</option>
-                        {PROFILE.map(p => <option key={p} value={p}>{p}</option>)}
-                      </select>
-                    ) : m.profil ? (
-                      <span style={{ background: "#f3f4f6", color: "#6b7280", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>{m.profil}</span>
-                    ) : null}
+                    <span style={{
+                      background: m.rolle === "admin" || m.rolle === "super_admin" ? C.blueDim : "#f3f4f6",
+                      color: m.rolle === "admin" || m.rolle === "super_admin" ? C.blue : "#6b7280",
+                      padding: "1px 7px",
+                      borderRadius: 20,
+                      fontWeight: 700,
+                    }}>
+                      {m.rolle === "super_admin" ? "Super-Admin" : m.rolle === "admin" ? "Admin" : "Nutzer"}
+                    </span>
+                    {m.profil && <span style={{ background: "#f3f4f6", color: "#6b7280", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>{m.profil}</span>}
                     {bestaetigt
                       ? <span style={{ color: C.muted }}>✓ Bestätigt</span>
                       : <span style={{ color: "#f59e0b", fontWeight: 600 }}>⏳ Einladung ausstehend</span>
@@ -988,6 +1015,9 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
+                  {isAdmin && (
+                    <button onClick={()=>startEdit(m)} style={{ ...css.btnSec, padding: "5px 11px", fontSize: 12 }}>✏️ Bearbeiten</button>
+                  )}
                   <button
                     onClick={() => resendInvite(m.email, m.name, m.rolle)}
                     disabled={resending === m.email}
@@ -1007,6 +1037,8 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                     ✕
                   </button>
                 </div>
+                </div>
+              )}
               </div>
             );
           })}
