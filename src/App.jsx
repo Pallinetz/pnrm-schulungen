@@ -47,6 +47,33 @@ function matchProfil(text) {
   return PROFILE.find(p => p.toLowerCase() === t) || "";
 }
 
+// Zielgruppe einer Schulung ("Alle" oder eine Auswahl aus PROFILE) gegen das
+// Profil eines Mitarbeiters. Wird live berechnet statt gespeichert, damit ein
+// späteres Ändern des Profils (oder der Zielgruppe) sofort überall greift.
+const ZIELGRUPPEN = ["Alle", ...PROFILE];
+function matchesZielgruppe(zielgruppen, profil) {
+  return !!zielgruppen?.length && (zielgruppen.includes("Alle") || (!!profil && zielgruppen.includes(profil)));
+}
+function effectiveEmpfaenger(sc, maList) {
+  const auto = maList.filter(m => matchesZielgruppe(sc.zielgruppen, m.profil)).map(m => m.id);
+  return Array.from(new Set([...(sc.empfaenger || []), ...auto]));
+}
+
+// schulungen-Tabelle: Spalten sind snake_case, der Rest der App arbeitet durchgehend
+// camelCase — bisher fehlte diese Umwandlung komplett (dokNr/gueltigAb/... kamen nie an).
+const toSnakeCase = k => k.replace(/[A-Z]/g, c => "_" + c.toLowerCase());
+const toCamelCase = k => k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+function schulungToDb(s) {
+  const row = {};
+  for (const k in s) if (k !== "id") row[toSnakeCase(k)] = s[k];
+  return row;
+}
+function schulungFromDb(r) {
+  const s = {};
+  for (const k in r) s[toCamelCase(k)] = r[k];
+  return s;
+}
+
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const css = {
   section: { background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:20, margin:"12px 0", boxShadow:"0 1px 2px rgba(22,35,58,.04)" },
@@ -397,7 +424,7 @@ function SchulungForm({ schulung, onSave, onClose, isAdmin }) {
     kategorie:"Pflege", pflicht:false, dauer:"ca. 20–30 Min.",
     bestehensgrenze:16, maxPunkte:20,
     grundsatz:"", lernziele:"", module:[], checkliste:[], fragen:[],
-    empfaenger:[], nachweise:{},
+    empfaenger:[], nachweise:{}, zielgruppen:["Alle"],
   });
   const [ai, setAi] = useState(false);
   const [aiErr, setAiErr] = useState("");
@@ -489,6 +516,21 @@ Format:
           <input type="checkbox" checked={form.pflicht} onChange={e=>set("pflicht",e.target.checked)} style={{ width:18,height:18,accentColor:C.blue }} />
           <strong>Pflichtschulung</strong> — für alle Mitarbeitenden verbindlich
         </label>
+        <div style={{ marginTop:14 }}>
+          <label style={css.lbl}>Zielgruppe</label>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {ZIELGRUPPEN.map(z=>{
+              const checked = (form.zielgruppen||[]).includes(z);
+              return (
+                <label key={z} style={{ display:"flex", alignItems:"center", gap:6, border:`1px solid ${checked?C.blue:C.border}`, background:checked?C.blueDim:C.white, borderRadius:999, padding:"5px 12px", cursor:"pointer", fontSize:13 }}>
+                  <input type="checkbox" checked={checked} onChange={()=>set("zielgruppen", checked ? (form.zielgruppen||[]).filter(x=>x!==z) : [...(form.zielgruppen||[]),z])} style={{ width:15,height:15,accentColor:C.blue }} />
+                  {z}
+                </label>
+              );
+            })}
+          </div>
+          <p style={{ margin:"6px 0 0", fontSize:12, color:C.muted }}>Steuert, wem diese Schulung automatisch zugewiesen wird (nach Mitarbeiter-Profil). Zusätzliche Personen lassen sich weiterhin über „Senden" hinzufügen.</p>
+        </div>
       </div>
 
       {/* KI */}
@@ -1057,7 +1099,7 @@ function FortschrittView({ schulungen, ma }) {
   const [sortBy, setSortBy] = useState("pct");
 
   const rows = ma.map(m => {
-    const assigned = schulungen.filter(s => (s.empfaenger||[]).includes(m.id));
+    const assigned = schulungen.filter(s => effectiveEmpfaenger(s, ma).includes(m.id));
     const done = assigned.filter(s => s.nachweise?.[m.id]);
     const open = assigned.filter(s => !s.nachweise?.[m.id]);
     const pct = assigned.length ? Math.round((done.length/assigned.length)*100) : null;
@@ -1154,13 +1196,18 @@ function SendModal({ sc, ma, onClose, onSend }) {
         {["PNRM","Caritas"].map(t=><button key={t} onClick={()=>toggleTeam(t)} style={{ ...css.btnSec, padding:"6px 12px", fontSize:12 }}>Alle {t}</button>)}
         <button onClick={()=>setSel(new Set(ma.map(m=>m.id)))} style={{ ...css.btnSec, padding:"6px 12px", fontSize:12 }}>Alle</button>
       </div>
+      <p style={{ margin:"0 0 8px", fontSize:12, color:C.muted }}>Personen mit passendem Profil (Zielgruppe: {(sc.zielgruppen||[]).join(", ")||"–"}) sind automatisch zugeordnet und lassen sich hier nicht abwählen.</p>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
-        {ma.map(m=>(
-          <label key={m.id} style={{ display:"flex", alignItems:"center", gap:10, border:`1px solid ${sel.has(m.id)?C.blue:C.border}`, background:sel.has(m.id)?C.blueDim:"#fbfcff", borderRadius:11, padding:"9px 13px", cursor:"pointer" }}>
-            <input type="checkbox" checked={sel.has(m.id)} onChange={()=>toggle(m.id)} style={{ accentColor:C.blue, width:17, height:17 }} />
-            <div><div style={{ fontWeight:700, fontSize:13 }}>{m.name}</div><div style={{ fontSize:11, color:C.muted }}>{m.rolle} · {m.team}</div></div>
+        {ma.map(m=>{
+          const auto = matchesZielgruppe(sc.zielgruppen, m.profil);
+          const checked = auto || sel.has(m.id);
+          return (
+          <label key={m.id} style={{ display:"flex", alignItems:"center", gap:10, border:`1px solid ${checked?C.blue:C.border}`, background:checked?C.blueDim:"#fbfcff", borderRadius:11, padding:"9px 13px", cursor:auto?"default":"pointer", opacity:auto?0.85:1 }}>
+            <input type="checkbox" checked={checked} disabled={auto} onChange={()=>toggle(m.id)} style={{ accentColor:C.blue, width:17, height:17 }} />
+            <div><div style={{ fontWeight:700, fontSize:13 }}>{m.name}{auto&&<span style={{ marginLeft:8, fontSize:11, fontWeight:700, color:C.blue }}>· Zielgruppe</span>}</div><div style={{ fontSize:11, color:C.muted }}>{m.rolle} · {m.team}</div></div>
           </label>
-        ))}
+          );
+        })}
       </div>
       {hasCaritas && <div style={{ ...css.notice, marginBottom:14 }}>⚠️ <strong>Caritas-Partnerteam einbezogen</strong> — bitte sicherstellen, dass die Schulung dort ebenfalls offiziell kommuniziert und in die Caritas-Prozesse integriert wird.</div>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
@@ -1178,7 +1225,7 @@ function SendModal({ sc, ma, onClose, onSend }) {
 
 // ─── Nachweisübersicht ────────────────────────────────────────────────────────
 function NachweisModal({ sc, ma, onClose }) {
-  const empf=(sc.empfaenger||[]).map(id=>ma.find(m=>m.id===id)).filter(Boolean);
+  const empf=effectiveEmpfaenger(sc, ma).map(id=>ma.find(m=>m.id===id)).filter(Boolean);
   const nw=sc.nachweise||{};
   const done=empf.filter(m=>nw[m.id]); const open=empf.filter(m=>!nw[m.id]);
   const exportXls=()=>{const rows=empf.map(m=>{const n=nw[m.id];return{Schulung:sc.titel,"Dok-Nr":sc.dokNr,Version:sc.version,Name:m.name,Team:m.team,Rolle:m.rolle,Bestanden:n?"Ja":"Ausstehend",Datum:n?.ts||"–",Punkte:n?`${n.score}/${n.maxP}`:"–",Prüfcode:n?.code||"–"};});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),"Nachweise");XLSX.writeFile(wb,`Nachweise_${sc.dokNr}_${new Date().toISOString().slice(0,10)}.xlsx`);};
@@ -1397,8 +1444,8 @@ function WissenView({ isAdmin, showToast }) {
 // ─── Export ───────────────────────────────────────────────────────────────────
 function exportExcel(schulungen, ma) {
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(schulungen.map(s=>({Titel:s.titel,"Dok-Nr":s.dokNr,Version:s.version,Status:s.status,Kategorie:s.kategorie,Pflicht:s.pflicht?"Ja":"Nein","Gültig ab":s.gueltigAb,"Nächste Prüfung":s.naechstePruefung,Versendet:s.empfaenger?.length||0,Nachweise:Object.keys(s.nachweise||{}).length}))),"Schulungen");
-  const rows2=[]; schulungen.forEach(s=>(s.empfaenger||[]).forEach(id=>{const m=ma.find(x=>x.id===id);const n=s.nachweise?.[id];rows2.push({Schulung:s.titel,"Dok-Nr":s.dokNr,Version:s.version,Name:m?.name||id,Team:m?.team||"",Rolle:m?.rolle||"",Bestanden:n?"Ja":"Ausstehend",Datum:n?.ts||"–",Punkte:n?`${n.score}/${n.maxP}`:"–",Prüfcode:n?.code||"–"});}));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(schulungen.map(s=>({Titel:s.titel,"Dok-Nr":s.dokNr,Version:s.version,Status:s.status,Kategorie:s.kategorie,Pflicht:s.pflicht?"Ja":"Nein","Gültig ab":s.gueltigAb,"Nächste Prüfung":s.naechstePruefung,Versendet:effectiveEmpfaenger(s,ma).length,Nachweise:Object.keys(s.nachweise||{}).length}))),"Schulungen");
+  const rows2=[]; schulungen.forEach(s=>effectiveEmpfaenger(s,ma).forEach(id=>{const m=ma.find(x=>x.id===id);const n=s.nachweise?.[id];rows2.push({Schulung:s.titel,"Dok-Nr":s.dokNr,Version:s.version,Name:m?.name||id,Team:m?.team||"",Rolle:m?.rolle||"",Bestanden:n?"Ja":"Ausstehend",Datum:n?.ts||"–",Punkte:n?`${n.score}/${n.maxP}`:"–",Prüfcode:n?.code||"–"});}));
   if(rows2.length)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows2),"Nachweise");
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(ma.map(({id,...m})=>m)),"Mitarbeiter");
   XLSX.writeFile(wb,`PNRM_Schulungen_${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -1554,7 +1601,7 @@ export default function App() {
   useEffect(() => {
     setSchulungenLoading(true);
     supabase.from("schulungen").select("*").order("created_at", { ascending: false }).then(({ data, error }) => {
-      if (!error && data) setSchulungen(data);
+      if (!error && data) setSchulungen(data.map(schulungFromDb));
       setSchulungenLoading(false);
     });
   }, [user]);
@@ -1582,10 +1629,41 @@ export default function App() {
   }
 
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),5000);};
-  const saveSchul=data=>{ if(active&&modal==="edit"){setSchulungen(s=>s.map(x=>x.id===active.id?{...active,...data}:x));showToast("Gespeichert.");}else{const n={...data,id:Date.now(),empfaenger:[],nachweise:{}};setSchulungen(s=>[...s,n]);showToast("Schulung angelegt.");} setModal(null);setActive(null); };
-  const sendSchul=(id,empf)=>{setSchulungen(s=>s.map(x=>x.id===id?{...x,empfaenger:empf}:x));setModal(null);setActive(null);const hasC=empf.some(eid=>ma.find(m=>m.id===eid)?.team==="Caritas");showToast(`✓ An ${empf.length} Personen versendet.`);if(hasC)setTimeout(()=>showToast("⚠️ Caritas-Partnerteam einbezogen — bitte offizielle Weitergabe sicherstellen.","warn"),5500);};
-  const saveNachweis=(schulungId,nw)=>{const maMatch=ma.find(m=>m.name.toLowerCase()===nw.name.toLowerCase());const key=maMatch?.id||nw.name;setSchulungen(s=>s.map(x=>x.id===schulungId?{...x,nachweise:{...(x.nachweise||{}),[key]:nw}}:x));showToast(`✓ Nachweis gespeichert. Code: ${nw.code}`);};
-  const filtered=schulungen.filter(s=>{const mF=filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&s.empfaenger?.length>0);const mS=!search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());return mF&&mS;});
+  const saveSchul=async data=>{
+    if(active&&modal==="edit"){
+      const {error}=await supabase.from("schulungen").update(schulungToDb(data)).eq("id",active.id);
+      if(error){showToast(`Fehler beim Speichern: ${error.message}`);return;}
+      setSchulungen(s=>s.map(x=>x.id===active.id?{...active,...data}:x));
+      showToast("Gespeichert.");
+    }else{
+      const payload={...data,empfaenger:data.empfaenger||[],nachweise:{}};
+      const {data:inserted,error}=await supabase.from("schulungen").insert(schulungToDb(payload)).select().single();
+      if(error){showToast(`Fehler beim Anlegen: ${error.message}`);return;}
+      setSchulungen(s=>[schulungFromDb(inserted),...s]);
+      showToast("Schulung angelegt.");
+    }
+    setModal(null);setActive(null);
+  };
+  const sendSchul=async(id,empf)=>{
+    const {error}=await supabase.from("schulungen").update({empfaenger:empf}).eq("id",id);
+    if(error){showToast(`Fehler: ${error.message}`);return;}
+    setSchulungen(s=>s.map(x=>x.id===id?{...x,empfaenger:empf}:x));
+    setModal(null);setActive(null);
+    const hasC=empf.some(eid=>ma.find(m=>m.id===eid)?.team==="Caritas");
+    showToast(`✓ An ${empf.length} Personen versendet.`);
+    if(hasC)setTimeout(()=>showToast("⚠️ Caritas-Partnerteam einbezogen — bitte offizielle Weitergabe sicherstellen.","warn"),5500);
+  };
+  const saveNachweis=async(schulungId,nw)=>{
+    const sc=schulungen.find(x=>x.id===schulungId);
+    const maMatch=ma.find(m=>m.name.toLowerCase()===nw.name.toLowerCase());
+    const key=maMatch?.id||nw.name;
+    const newNachweise={...(sc.nachweise||{}),[key]:nw};
+    const {error}=await supabase.from("schulungen").update({nachweise:newNachweise}).eq("id",schulungId);
+    if(error){showToast(`Fehler: ${error.message}`);return;}
+    setSchulungen(s=>s.map(x=>x.id===schulungId?{...x,nachweise:newNachweise}:x));
+    showToast(`✓ Nachweis gespeichert. Code: ${nw.code}`);
+  };
+  const filtered=schulungen.filter(s=>{const mF=filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&effectiveEmpfaenger(s,ma).length>0);const mS=!search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());return mF&&mS;});
 
   if (inviteToken && !user) return (
     <SetPasswordView token={inviteToken} onDone={() => { window.history.replaceState({}, "", window.location.pathname); window.location.reload(); }} />
@@ -1678,7 +1756,7 @@ export default function App() {
       <div style={{ maxWidth:980, margin:"0 auto", padding:"20px" }}>
         {/* Stats */}
         <div className="statstrip" style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", background:C.white, border:`1px solid ${C.border}`, borderRadius:14, marginBottom:22, overflow:"hidden", boxShadow:"0 1px 2px rgba(22,35,58,.04), 0 4px 16px rgba(46,75,110,.05)" }}>
-          {[["Schulungen",schulungen.length,C.navy],["Freigegeben",schulungen.filter(s=>s.status==="Freigegeben").length,"#1A6B3C"],["Versendet",schulungen.filter(s=>s.empfaenger?.length>0).length,C.blueAccent],["Nachweise",schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0),C.teal],["Mitarbeiter",ma.length,"#5A6E85"]].map(([l,v,accent],i)=>(
+          {[["Schulungen",schulungen.length,C.navy],["Freigegeben",schulungen.filter(s=>s.status==="Freigegeben").length,"#1A6B3C"],["Versendet",schulungen.filter(s=>effectiveEmpfaenger(s,ma).length>0).length,C.blueAccent],["Nachweise",schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0),C.teal],["Mitarbeiter",ma.length,"#5A6E85"]].map(([l,v,accent],i)=>(
             <div key={l} style={{ padding:"16px 18px 14px", borderLeft: i>0 ? `1px solid ${C.border}` : "none", position:"relative" }}>
               <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:accent, opacity:0.85 }} />
               <div style={{ fontSize:24, fontWeight:700, color:C.text, lineHeight:1.1, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em" }}>{v}</div>
@@ -1704,7 +1782,7 @@ export default function App() {
           {schulungenLoading&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Schulungen werden geladen…</p>}
           {!schulungenLoading&&filtered.length===0&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Keine Schulungen gefunden.</p>}
           {filtered.map(sc=>{
-            const nwCount=Object.keys(sc.nachweise||{}).length; const sent=sc.empfaenger?.length||0;
+            const nwCount=Object.keys(sc.nachweise||{}).length; const sent=effectiveEmpfaenger(sc,ma).length;
             const statusStyle = sc.status==="Freigegeben"
               ? { background:C.good.bg, color:C.good.text }
               : sc.status==="Entwurf"
