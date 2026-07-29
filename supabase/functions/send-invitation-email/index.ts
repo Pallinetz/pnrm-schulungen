@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
 
       const id = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + '-' + Date.now().toString(36)
       const { error: dbErr } = await admin.from('mitarbeiter').upsert(
-        { id, email, name, rolle, profil: profil || null },
+        { id, email, name, rolle, profil: Array.isArray(profil) && profil.length ? profil : null },
         { onConflict: 'email' }
       )
       if (dbErr) throw new Error(dbErr.message)

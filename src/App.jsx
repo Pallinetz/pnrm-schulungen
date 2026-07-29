@@ -40,19 +40,25 @@ const SEED_MA = [
 
 const KATEGORIEN = ["Pflege","Medizin","Recht & Compliance","QM","Kommunikation","Notfallmanagement"];
 const ROLLEN = ["Arzt / Ärztin","Pflegefachkraft","Alltagsbegleiter/in","Koordination","Verwaltung","Leitung","Geschäftsführung"];
-const PROFILE = ["Palliativ Fachpflegekraft", "Büro", "Alltagsbegleitung"];
+const PROFILE = ["Pflege", "Büro", "Alltagsbegleitung"];
+// Abteilungs-Text aus dem Excel/CSV-Import auf ein oder mehrere Profile
+// abbilden: "Fachpflege" -> Pflege, "Alltag" -> Alltagsbegleitung, alles
+// andere (auch leer) -> Büro.
 function matchProfil(text) {
   const t = (text || "").trim().toLowerCase();
-  if (!t) return "";
-  return PROFILE.find(p => p.toLowerCase() === t) || "";
+  const treffer = [];
+  if (t.includes("fachpflege")) treffer.push("Pflege");
+  if (t.includes("alltag")) treffer.push("Alltagsbegleitung");
+  return treffer.length ? treffer : ["Büro"];
 }
 
-// Zielgruppe einer Schulung ("Alle" oder eine Auswahl aus PROFILE) gegen das
-// Profil eines Mitarbeiters. Wird live berechnet statt gespeichert, damit ein
-// späteres Ändern des Profils (oder der Zielgruppe) sofort überall greift.
+// Zielgruppe einer Schulung ("Alle" oder eine Auswahl aus PROFILE) gegen die
+// Profile eines Mitarbeiters (ein Mitarbeiter kann mehrere haben). Wird live
+// berechnet statt gespeichert, damit ein späteres Ändern der Profile (oder
+// der Zielgruppe) sofort überall greift.
 const ZIELGRUPPEN = ["Alle", ...PROFILE];
-function matchesZielgruppe(zielgruppen, profil) {
-  return !!zielgruppen?.length && (zielgruppen.includes("Alle") || (!!profil && zielgruppen.includes(profil)));
+function matchesZielgruppe(zielgruppen, profile) {
+  return !!zielgruppen?.length && (zielgruppen.includes("Alle") || !!profile?.some(p => zielgruppen.includes(p)));
 }
 function effectiveEmpfaenger(sc, maList) {
   const auto = maList.filter(m => matchesZielgruppe(sc.zielgruppen, m.profil)).map(m => m.id);
@@ -706,6 +712,7 @@ function parseImportFile(file) {
 
 function BulkInviteModal({ onClose, showToast, onInviteSent }) {
   const [rows, setRows] = useState([]);
+  const [selected, setSelected] = useState(new Set());
   const [rolle, setRolle] = useState("user");
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState(null);
@@ -718,6 +725,7 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
       const parsed = await parseImportFile(file);
       if (!parsed.length) { showToast("Keine gültigen Zeilen mit E-Mail gefunden."); return; }
       setRows(parsed);
+      setSelected(new Set(parsed.map(r => r.email)));
     } catch (err) {
       showToast(`Fehler beim Lesen: ${err.message}`);
     }
@@ -725,12 +733,17 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
   };
 
   const removeRow = i => setRows(r => r.filter((_, idx) => idx !== i));
+  const toggleRow = email => setSelected(s => { const n = new Set(s); n.has(email) ? n.delete(email) : n.add(email); return n; });
+  const allSelected = rows.length > 0 && rows.every(r => selected.has(r.email));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(rows.map(r => r.email)));
 
   const createAll = async () => {
+    const targets = rows.filter(r => selected.has(r.email));
+    if (!targets.length) { showToast("Keine Mitarbeiter ausgewählt."); return; }
     setProcessing(true);
     const { data: { session } } = await supabase.auth.getSession();
     const out = [];
-    for (const row of rows) {
+    for (const row of targets) {
       const name = `${row.vorname} ${row.nachname}`.trim() || row.email;
       const profil = matchProfil(row.abteilung);
       try {
@@ -763,7 +776,7 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
             <button onClick={() => fileRef.current.click()} style={{ ...css.btnSec, fontSize: 13, padding: "8px 14px" }}>📁 Datei auswählen</button>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} style={{ display: "none" }} />
-            {rows.length > 0 && <span style={{ fontSize: 13, color: C.muted }}>{rows.length} Person{rows.length !== 1 ? "en" : ""} erkannt</span>}
+            {rows.length > 0 && <span style={{ fontSize: 13, color: C.muted }}>{rows.length} Person{rows.length !== 1 ? "en" : ""} erkannt, {selected.size} ausgewählt</span>}
             <div style={{ marginLeft: "auto" }}>
               <select value={rolle} onChange={e => setRolle(e.target.value)} style={{ ...css.inp, fontSize: 13, padding: "6px 10px" }}>
                 <option value="user">Alle als Nutzer</option>
@@ -773,24 +786,27 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
           </div>
 
           {rows.length > 0 && (
-            <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
-              {rows.map((r, i) => {
-                const profil = matchProfil(r.abteilung);
-                return (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: i < rows.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                  <div style={{ flex: 1, fontSize: 13 }}><strong>{r.vorname} {r.nachname}</strong></div>
-                  <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{r.email}</div>
-                  <div style={{ flex: 1, fontSize: 12 }}>
-                    {r.abteilung && (profil
-                      ? <span style={{ background: "#f3f4f6", color: "#6b7280", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>{profil}</span>
-                      : <span style={{ color: C.warn.text }}>„{r.abteilung}" unbekannt – kein Profil</span>
-                    )}
+            <>
+              <div style={{ marginBottom: 8 }}>
+                <button onClick={toggleAll} style={{ ...css.btnSec, fontSize: 12, padding: "5px 10px" }}>{allSelected ? "Keine auswählen" : "Alle auswählen"}</button>
+              </div>
+              <div style={{ maxHeight: 280, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                {rows.map((r, i) => {
+                  const profil = matchProfil(r.abteilung);
+                  return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: i < rows.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                    <input type="checkbox" checked={selected.has(r.email)} onChange={() => toggleRow(r.email)} style={{ accentColor: C.blue, width: 16, height: 16 }} />
+                    <div style={{ flex: 1, fontSize: 13 }}><strong>{r.vorname} {r.nachname}</strong></div>
+                    <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{r.email}</div>
+                    <div style={{ flex: 1, fontSize: 12, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {profil.map(p => <span key={p} style={{ background: "#f3f4f6", color: "#6b7280", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>{p}</span>)}
+                    </div>
+                    <button onClick={() => removeRow(i)} style={{ ...css.btnDanger, padding: "3px 9px", fontSize: 12 }}>✕</button>
                   </div>
-                  <button onClick={() => removeRow(i)} style={{ ...css.btnDanger, padding: "3px 9px", fontSize: 12 }}>✕</button>
-                </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </>
       )}
@@ -818,8 +834,8 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
         <button onClick={onClose} style={css.btnSec}>Schließen</button>
         {!results && rows.length > 0 && (
-          <button onClick={createAll} disabled={processing} style={{ ...css.btn, opacity: processing ? 0.65 : 1 }}>
-            {processing ? "Erstelle Links…" : `${rows.length} Einladungslinks erstellen`}
+          <button onClick={createAll} disabled={processing || selected.size === 0} style={{ ...css.btn, opacity: (processing || selected.size === 0) ? 0.65 : 1 }}>
+            {processing ? "Erstelle Links…" : selected.size === 0 ? "Keine Auswahl" : `${selected.size} Einladungslinks erstellen`}
           </button>
         )}
       </div>
@@ -828,7 +844,7 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
 }
 
 function InviteModal({ onClose, showToast, onInviteSent }) {
-  const [form, setForm] = useState({ name:"", email:"", rolle:"user", profil:"" });
+  const [form, setForm] = useState({ name:"", email:"", rolle:"user", profil:[] });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [inviteUrl, setInviteUrl] = useState(null);
@@ -883,7 +899,17 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
             <div><label style={css.lbl}>Name</label><input value={form.name} onChange={e=>set("name",e.target.value)} style={css.inp} placeholder="Vor- und Nachname" /></div>
             <div><label style={css.lbl}>E-Mail</label><input type="email" value={form.email} onChange={e=>set("email",e.target.value)} style={css.inp} placeholder="email@pallinetz.de" /></div>
             <div><label style={css.lbl}>Zugriff</label><select value={form.rolle} onChange={e=>set("rolle",e.target.value)} style={css.inp}><option value="user">Nutzer – nur Schulungen ansehen</option><option value="admin">Admin – Schulungen verwalten & Mitarbeiter einladen</option></select></div>
-            <div><label style={css.lbl}>Profil</label><select value={form.profil} onChange={e=>set("profil",e.target.value)} style={css.inp}><option value="">– kein Profil –</option>{PROFILE.map(p=><option key={p} value={p}>{p}</option>)}</select></div>
+            <div>
+              <label style={css.lbl}>Profil (Mehrfachauswahl möglich)</label>
+              <div style={{ display:"flex", gap:14, flexWrap:"wrap" }}>
+                {PROFILE.map(p => (
+                  <label key={p} style={{ display:"flex", alignItems:"center", gap:6, fontSize:13, cursor:"pointer" }}>
+                    <input type="checkbox" checked={form.profil.includes(p)} onChange={()=>set("profil", form.profil.includes(p) ? form.profil.filter(x=>x!==p) : [...form.profil,p])} />
+                    {p}
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
       }
       <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:18 }}>
@@ -912,12 +938,12 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
     return true;
   };
 
-  const startEdit = m => { setEditId(m.id); setDraft({ name: m.name, email: m.email, rolle: m.rolle, profil: m.profil || "" }); };
+  const startEdit = m => { setEditId(m.id); setDraft({ name: m.name, email: m.email, rolle: m.rolle, profil: m.profil || [] }); };
   const cancelEdit = () => { setEditId(null); setDraft({}); };
   const saveEdit = async m => {
     if (!draft.name?.trim() || !draft.email?.trim()) { showToast("Name und E-Mail dürfen nicht leer sein."); return; }
     const patch = { name: draft.name.trim(), email: draft.email.trim() };
-    if (isSuperAdmin) { patch.rolle = draft.rolle; patch.profil = draft.profil || null; }
+    if (isSuperAdmin) { patch.rolle = draft.rolle; patch.profil = draft.profil?.length ? draft.profil : null; }
     const ok = await updateMitarbeiter(m.id, patch);
     if (ok) { showToast("Gespeichert."); cancelEdit(); }
   };
@@ -998,11 +1024,15 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                         </select>
                       </div>
                       <div>
-                        <label style={css.lbl}>Profil</label>
-                        <select value={draft.profil} onChange={e=>setDraft(d=>({...d,profil:e.target.value}))} style={{ ...css.inp, padding:"6px 10px", fontSize:13 }}>
-                          <option value="">– kein Profil –</option>
-                          {PROFILE.map(p => <option key={p} value={p}>{p}</option>)}
-                        </select>
+                        <label style={css.lbl}>Profil (Mehrfachauswahl möglich)</label>
+                        <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                          {PROFILE.map(p => (
+                            <label key={p} style={{ display:"flex", alignItems:"center", gap:5, fontSize:13, cursor:"pointer" }}>
+                              <input type="checkbox" checked={draft.profil.includes(p)} onChange={()=>setDraft(d=>({...d, profil: d.profil.includes(p) ? d.profil.filter(x=>x!==p) : [...d.profil,p]}))} />
+                              {p}
+                            </label>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1026,7 +1056,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                     }}>
                       {m.rolle === "super_admin" ? "Super-Admin" : m.rolle === "admin" ? "Admin" : "Nutzer"}
                     </span>
-                    {m.profil && <span style={{ background: "#f3f4f6", color: "#6b7280", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>{m.profil}</span>}
+                    {m.profil?.map(p => <span key={p} style={{ background: "#f3f4f6", color: "#6b7280", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>{p}</span>)}
                     {bestaetigt
                       ? <span style={{ color: C.muted }}>✓ Bestätigt</span>
                       : <span style={{ color: "#f59e0b", fontWeight: 600 }}>⏳ Einladung ausstehend</span>
@@ -1143,7 +1173,7 @@ function FortschrittView({ schulungen, ma }) {
           <summary style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
             <div>
               <strong style={{ fontSize: 14 }}>{m.name}</strong>
-              <span style={{ color: C.muted, fontSize: 12, marginLeft: 10 }}>{m.email}{m.profil?` · ${m.profil}`:""}</span>
+              <span style={{ color: C.muted, fontSize: 12, marginLeft: 10 }}>{m.email}{m.profil?.length?` · ${m.profil.join(", ")}`:""}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 12, color: C.muted }}>{done.length}/{assigned.length}</span>
