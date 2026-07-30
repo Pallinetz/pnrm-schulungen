@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, GraduationCap, CheckCircle2, Send, FileCheck2, Users, ChevronDown, LogOut } from "lucide-react";
 import * as XLSX from "xlsx";
 import { VideoUploader } from "./components/VideoUploader";
 import { VideoPlayer } from "./components/VideoPlayer";
@@ -87,6 +87,15 @@ const twLabel = "block text-xs font-medium text-slate-500 mb-1";
 const twBtnPrimary = "rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
 const twBtnSecondary = "rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
 const twBadge = "inline-flex items-center bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-md font-normal";
+const AVATAR_COLORS = ["bg-blue-100 text-blue-700", "bg-emerald-100 text-emerald-700", "bg-amber-100 text-amber-700", "bg-violet-100 text-violet-700", "bg-rose-100 text-rose-700", "bg-teal-100 text-teal-700"];
+function avatarInitials(name) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase() || "?";
+}
+function avatarColorClass(name) {
+  const sum = [...(name || "")].reduce((a, c) => a + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
 const twLink = "bg-transparent border-0 p-0 text-sm text-blue-700 hover:text-blue-800 cursor-pointer font-sans";
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
@@ -1127,10 +1136,10 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
       {ma.length === 0 ? (
         <div className="text-center py-12 text-slate-500">Noch keine Mitarbeiter. Laden Sie welche ein!</div>
       ) : (
-        <div className="border border-slate-200 rounded-lg bg-white overflow-x-auto">
+        <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-x-auto">
           <table className="w-full text-sm border-collapse min-w-[640px]">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/60">
+              <tr className="border-b border-slate-200 bg-slate-100/70">
                 {isAdmin && <th className="w-10 px-4 py-2.5"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-300 accent-slate-900" /></th>}
                 <th className="text-left px-3 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wide">Name</th>
                 <th className="text-left px-3 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wide">Rollen</th>
@@ -1195,15 +1204,20 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                 );
 
                 return (
-                  <tr key={m.email || m.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60">
+                  <tr key={m.email || m.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/80 transition-colors">
                     {isAdmin && (
                       <td className="px-4 py-3">
                         <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggleSelect(m.id)} className="w-4 h-4 rounded border-slate-300 accent-slate-900" />
                       </td>
                     )}
                     <td className="px-3 py-3">
-                      <div className="font-medium text-slate-900">{m.name}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{m.email}</div>
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColorClass(m.name)}`}>{avatarInitials(m.name)}</span>
+                        <div className="min-w-0">
+                          <div className="font-medium text-slate-900 truncate">{m.name}</div>
+                          <div className="text-xs text-slate-500 mt-0.5 truncate">{m.email}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex gap-1.5 flex-wrap">
@@ -1463,7 +1477,7 @@ function WissenView({ isAdmin, showToast }) {
       if (katRes.error) console.error("Kategorien-Fehler:", katRes.error);
       if (katRes.data) {
         const map = {};
-        katRes.data.forEach(k => { map[k.id] = k.name; });
+        katRes.data.forEach(k => { map[k.id] = k; });
         setKategorieMap(map);
       }
       if (artRes.data) setArtikel(artRes.data.map(a => ({ ...a, dateien: a.wissen_dateien ?? [] })));
@@ -1546,7 +1560,7 @@ function WissenView({ isAdmin, showToast }) {
             <div>
               <label style={css.lbl}>Kategorie</label>
               <select value={form.kategorie_id} onChange={e=>setF("kategorie_id",e.target.value)} style={css.inp}>
-                {Object.entries(kategorieMap).map(([id,name])=><option key={id} value={id}>{name}</option>)}
+                {Object.entries(kategorieMap).map(([id,k])=><option key={id} value={id}>{k.name}</option>)}
               </select>
             </div>
             <div>
@@ -1585,7 +1599,7 @@ function WissenView({ isAdmin, showToast }) {
       {/* Detailansicht */}
       {selected && art && !editing && (
         <div style={css.section}>
-          <span style={{ ...css.badge, marginBottom:10, marginRight:6, display:"inline-block" }}>{kategorieMap[art.kategorie_id] ?? art.kategorie ?? "—"}</span>
+          <span style={{ ...css.badge, marginBottom:10, marginRight:6, display:"inline-block" }}>{kategorieMap[art.kategorie_id]?.name ?? art.kategorie ?? "—"}</span>
           {isAdmin && art.status && art.status!=="Freigegeben" && <span style={{ ...css.badge, marginBottom:10, display:"inline-block", background:"#fde68a", color:"#92400e" }}>{art.status}</span>}
           <h2 style={{ margin:"0 0 14px", fontSize:20 }}>{art.titel}</h2>
           <p style={{ margin:"0 0 20px", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{art.inhalt}</p>
@@ -1610,25 +1624,36 @@ function WissenView({ isAdmin, showToast }) {
       {!selected && !editing && (
         <div>
           {artikel.length===0 && <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Noch keine Artikel.</p>}
-          {artikel.map(a=>{
-            const videos=a.dateien.filter(d=>d.typ==="video").length;
-            return (
-              <div key={a.id} style={{ ...css.section, cursor:"pointer" }} onClick={()=>setSelected(a.id)}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
-                  <div style={{ flex:1 }}>
-                    <span style={{ ...css.badge, marginBottom:6, marginRight:6, display:"inline-block" }}>{kategorieMap[a.kategorie_id] ?? a.kategorie ?? "—"}</span>
-                    {isAdmin && a.status && a.status!=="Freigegeben" && <span style={{ ...css.badge, marginBottom:6, display:"inline-block", background:"#fde68a", color:"#92400e" }}>{a.status}</span>}
-                    <h3 style={{ margin:"0 0 4px", fontSize:16 }}>{a.titel}</h3>
-                    <p style={{ margin:0, fontSize:12, color:C.muted }}>{stripMd(a.inhalt).slice(0,120)}{stripMd(a.inhalt).length>120?"…":""}</p>
-                    {videos>0 && <span style={{ fontSize:12, color:C.blue, marginTop:4, display:"inline-block" }}>▶ {videos} Video{videos!==1?"s":""}</span>}
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {artikel.map(a=>{
+              const videos=a.dateien.filter(d=>d.typ==="video").length;
+              const kat = kategorieMap[a.kategorie_id];
+              const preview = stripMd(a.inhalt);
+              const lesedauer = Math.max(1, Math.round(preview.split(/\s+/).filter(Boolean).length / 200));
+              return (
+                <div key={a.id}
+                  className="group relative bg-white border border-slate-200/80 rounded-xl shadow-sm p-5 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_-6px_rgba(59,130,246,0.25)] hover:border-blue-200"
+                  onClick={()=>setSelected(a.id)}>
                   {isAdmin && (
-                    <button onClick={e=>{e.stopPropagation();deleteArtikel(a.id);}} style={{ ...css.btnDanger, padding:"5px 11px" }}>✕</button>
+                    <button onClick={e=>{e.stopPropagation();deleteArtikel(a.id);}} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-600 text-sm">✕</button>
                   )}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0" style={{ background: kat?.farbe ? `${kat.farbe}1a` : "#f1f5f9" }}>
+                      {kat?.icon || "📄"}
+                    </div>
+                    <span className="text-xs font-medium text-slate-500 truncate">{kat?.name ?? a.kategorie ?? "—"}</span>
+                  </div>
+                  {isAdmin && a.status && a.status!=="Freigegeben" && <span style={{ ...css.badge, marginBottom:6, display:"inline-block", background:"#fde68a", color:"#92400e" }}>{a.status}</span>}
+                  <h3 className="text-[15px] font-semibold text-slate-900 mb-1.5 leading-snug">{a.titel}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed mb-3">{preview.slice(0,110)}{preview.length>110?"…":""}</p>
+                  <div className="flex items-center gap-3 text-xs text-slate-400">
+                    <span>⏱ {lesedauer} Min. Lesezeit</span>
+                    {videos>0 && <span className="text-blue-600">▶ {videos} Video{videos!==1?"s":""}</span>}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -1760,6 +1785,40 @@ function SetPasswordView({ token, onDone }) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+function HeaderProfileMenu({ user, isAdmin, onSignOut }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 rounded-full pl-1 pr-2.5 py-1 hover:bg-white/10 transition-colors">
+        <span className="w-7 h-7 rounded-full bg-white/90 text-slate-900 flex items-center justify-center text-xs font-bold shrink-0">
+          {(user?.email || "?")[0].toUpperCase()}
+        </span>
+        <span className="text-sm text-white/90 hidden sm:inline max-w-[180px] truncate">{user?.email}</span>
+        <ChevronDown size={14} className="text-white/70" />
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 z-30 text-left">
+          <div className="px-3 py-2 border-b border-slate-100">
+            <div className="text-sm font-medium text-slate-900 truncate">{user?.email}</div>
+            <div className="text-xs text-slate-500">{isAdmin ? "Administrator" : "Nutzer"}</div>
+          </div>
+          <button onClick={() => { setOpen(false); onSignOut(); }} className="w-full flex items-center gap-2 text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+            <LogOut size={15} /> Abmelden
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [schulungen, setSchulungen] = useState([]);
   const [schulungenLoading, setSchulungenLoading] = useState(false);
@@ -1925,44 +1984,45 @@ export default function App() {
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:FONT, color:C.text, fontSize:15 }}>
       {/* Header */}
-      <header style={{ background:`linear-gradient(90deg, ${C.navyDark} 0%, ${C.navy} 100%)`, position:"sticky", top:0, zIndex:10, boxShadow:"0 2px 16px rgba(22,35,58,.18)" }}>
-        <div style={{ maxWidth:980, margin:"0 auto", padding:"12px 24px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+      <header className="h-14 sticky top-0 z-10 border-b border-black/10" style={{ background:`linear-gradient(90deg, ${C.navyDark} 0%, ${C.navy} 100%)` }}>
+        <div className="max-w-[1400px] mx-auto h-full px-6 flex items-center justify-between gap-3">
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
             <PNRMLogo compact white />
-            <div style={{ width:1, height:26, background:"rgba(255,255,255,.22)" }} />
+            <div style={{ width:1, height:22, background:"rgba(255,255,255,.22)" }} />
             <span style={{ color:C.white, fontSize:13.5, fontWeight:600, letterSpacing:"0.02em", opacity:0.92 }}>Schulungen &amp; Wissen</span>
           </div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-            {user && (
-              <span title={isAdmin?"Administrator":"Nutzer"} style={{ display:"inline-flex", alignItems:"center", gap:7, background:"rgba(255,255,255,.1)", border:"1px solid rgba(255,255,255,.18)", color:C.white, borderRadius:20, padding:"4px 12px 4px 5px", fontSize:12, fontWeight:500, whiteSpace:"nowrap" }}>
-                <span style={{ width:22, height:22, borderRadius:"50%", background:"rgba(255,255,255,.92)", color:C.navy, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700 }}>{(user.email||"?")[0].toUpperCase()}</span>
-                {user.email}{isAdmin && <span style={{ opacity:0.65, fontWeight:400 }}>· Admin</span>}
-              </span>
-            )}
-            {user && <button className="hdrbtn" onClick={()=>exportExcel(schulungen,ma)} style={{ appearance:"none", background:"transparent", color:C.white, border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"7px 13px", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>Excel-Export</button>}
-            {isAdmin&&<button className="hdrbtn-solid" onClick={()=>{setActive(null);setModal("neu");setTab("schulungen");}} style={{ appearance:"none", background:C.white, color:C.navy, border:0, borderRadius:8, padding:"7px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 4px rgba(0,0,0,.15)" }}>+ Neue Schulung</button>}
-            <button type="button" className="hdrbtn" onClick={()=>supabase.auth.signOut()} style={{ appearance:"none", background:"transparent", color:"rgba(255,255,255,.85)", border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>Abmelden</button>
+          <div className="flex items-center gap-2">
+            {user && <button className="hdrbtn" onClick={()=>exportExcel(schulungen,ma)} style={{ appearance:"none", background:"transparent", color:C.white, border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"6px 12px", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>Excel-Export</button>}
+            {isAdmin&&<button className="hdrbtn-solid" onClick={()=>{setActive(null);setModal("neu");setTab("schulungen");}} style={{ appearance:"none", background:C.white, color:C.navy, border:0, borderRadius:8, padding:"6px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 4px rgba(0,0,0,.15)" }}>+ Neue Schulung</button>}
+            {user && <HeaderProfileMenu user={user} isAdmin={isAdmin} onSignOut={()=>supabase.auth.signOut()} />}
           </div>
         </div>
-        <div style={{ height:3, background:`linear-gradient(90deg, ${C.blueLight} 0%, ${C.blueAccent} 40%, ${C.teal} 100%)` }} />
       </header>
 
-      <div style={{ maxWidth:980, margin:"0 auto", padding:"20px" }}>
+      <div className="max-w-[1400px] mx-auto px-6 py-6">
         {/* Stats */}
-        <div className="statstrip" style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", background:C.white, border:`1px solid ${C.border}`, borderRadius:14, marginBottom:22, overflow:"hidden", boxShadow:"0 1px 2px rgba(22,35,58,.04), 0 4px 16px rgba(46,75,110,.05)" }}>
-          {[["Schulungen",schulungen.length,C.navy],["Freigegeben",schulungen.filter(s=>s.status==="Freigegeben").length,"#1A6B3C"],["Versendet",schulungen.filter(s=>effectiveEmpfaenger(s,ma).length>0).length,C.blueAccent],["Nachweise",schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0),C.teal],["Mitarbeiter",ma.length,"#5A6E85"]].map(([l,v,accent],i)=>(
-            <div key={l} style={{ padding:"16px 18px 14px", borderLeft: i>0 ? `1px solid ${C.border}` : "none", position:"relative" }}>
-              <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:accent, opacity:0.85 }} />
-              <div style={{ fontSize:24, fontWeight:700, color:C.text, lineHeight:1.1, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em" }}>{v}</div>
-              <div style={{ fontSize:11, color:C.muted, marginTop:4, textTransform:"uppercase", letterSpacing:"0.7px", fontWeight:600 }}>{l}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+          {[
+            ["Schulungen", schulungen.length, GraduationCap, "bg-blue-50", "text-blue-600"],
+            ["Freigegeben", schulungen.filter(s=>s.status==="Freigegeben").length, CheckCircle2, "bg-emerald-50", "text-emerald-600"],
+            ["Versendet", schulungen.filter(s=>effectiveEmpfaenger(s,ma).length>0).length, Send, "bg-indigo-50", "text-indigo-600"],
+            ["Nachweise", schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0), FileCheck2, "bg-teal-50", "text-teal-600"],
+            ["Mitarbeiter", ma.length, Users, "bg-amber-50", "text-amber-600"],
+          ].map(([label, value, Icon, iconBg, iconColor]) => (
+            <div key={label} className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}><Icon size={17} /></div>
+              <div className="min-w-0">
+                <div className="text-2xl font-bold text-slate-900 leading-none tabular-nums">{value}</div>
+                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1 truncate">{label}</div>
+              </div>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{ display:"flex", gap:2, borderBottom:`1px solid ${C.border}`, marginBottom:20 }}>
+        <div style={{ display:"flex", gap:4, borderBottom:`1px solid ${C.border}`, marginBottom:20 }}>
           {[["schulungen","Schulungen"],["wissen","Wissen"],...(user?[["mitarbeiter","Mitarbeiter"]]:[]),...(isSuperAdmin?[["fortschritt","Fortschritt"]]:[])]  .map(([id,label])=>(
-            <button key={id} onClick={()=>setTab(id)} className="ptab" style={{ background: tab===id ? C.white : "none", border:`1px solid ${tab===id?C.border:"transparent"}`, borderBottom: tab===id ? `1px solid ${C.white}` : "1px solid transparent", borderRadius:"10px 10px 0 0", color:tab===id?C.navy:C.muted, padding:"10px 20px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:500, marginBottom:-1, fontFamily:FONT, transition:"color .15s, background .15s" }}>{label}</button>
+            <button key={id} onClick={()=>setTab(id)} className="ptab" style={{ background: tab===id ? C.blueDim : "none", color:tab===id?C.navy:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:500, border:"none", borderBottom: tab===id ? `2px solid ${C.navy}` : "2px solid transparent", marginBottom:-1, borderRadius:"8px 8px 0 0", fontFamily:FONT, transition:"color .15s, background .15s" }}>{label}</button>
           ))}
         </div>
 
@@ -2043,11 +2103,6 @@ export default function App() {
         ::-webkit-scrollbar-thumb{background:#C5D0DE;border-radius:99px;border:2px solid #F0F4F8}
         ::-webkit-scrollbar-thumb:hover{background:#A8B8CC}
         ::-webkit-scrollbar-track{background:transparent}
-        @media (max-width: 860px){
-          .statstrip{grid-template-columns:repeat(2,1fr)!important}
-          .statstrip > div{border-left:none!important;border-top:1px solid #D1DCE8}
-          .statstrip > div:first-child,.statstrip > div:nth-child(2){border-top:none}
-        }
         @media (prefers-reduced-motion: reduce){
           *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
         }
