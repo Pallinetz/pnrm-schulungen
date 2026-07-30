@@ -118,7 +118,11 @@ Deno.serve(async (req) => {
       })
       const genData = await genRes.json()
       if (!genRes.ok) throw new Error(genData.msg || genData.message || 'Link konnte nicht erstellt werden')
-      return new Response(JSON.stringify({ url: genData.action_link }), { headers: { ...cors, 'Content-Type': 'application/json' } })
+      // Bewusst KEIN Link im Rückgabewert: Outlooks Link-Vorschau ruft jeden
+      // klickbaren Link automatisch im Hintergrund ab und verbraucht damit den
+      // Einmal-Token, bevor die Person ihn nutzen kann - der reine Zahlencode
+      // kann dagegen von keiner Vorschau "angeklickt" werden.
+      return new Response(JSON.stringify({ code: genData.email_otp }), { headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
     throw new Error('Unbekannte Aktion')

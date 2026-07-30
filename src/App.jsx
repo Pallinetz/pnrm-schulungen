@@ -683,9 +683,9 @@ function buildInviteMail(name, email, url, app) {
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-function buildResetMail(name, email, url) {
+function buildResetMail(name, email, code) {
   const subject = "Passwort zurücksetzen – Palliativ Netzwerk Rhein-Maas";
-  const body = `Hallo ${name},\n\nauf deinen Wunsch hier ein Link, um dein Passwort für Schulungen & Wissen neu zu setzen:\n${url}\n\nDer Link ist aus Sicherheitsgründen nur begrenzt gültig. Falls du das nicht angefordert hast, kannst du diese Mail ignorieren.\n\n`;
+  const body = `Hallo ${name},\n\nauf deinen Wunsch hier dein Code, um dein Passwort für Schulungen & Wissen neu zu setzen.\n\nGeh auf die Login-Seite → "Passwort vergessen" → "Ich habe bereits einen Code" und gib dort diesen Code ein:\n\n${code}\n\nDer Code ist aus Sicherheitsgründen nur begrenzt gültig. Falls du das nicht angefordert hast, kannst du diese Mail ignorieren.\n\n`;
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
@@ -1084,8 +1084,8 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
       });
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
-      showToast(`Reset-Link für ${email} erstellt – Outlook öffnet sich.`);
-      window.location.href = buildResetMail(name, email, res.data.url);
+      showToast(`Reset-Code für ${email} erstellt – Outlook öffnet sich.`);
+      window.location.href = buildResetMail(name, email, res.data.code);
     } catch (e) {
       showToast(`Fehler: ${e.message}`);
     }
@@ -1913,6 +1913,13 @@ export default function App() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetResult, setResetResult] = useState(null);
+  const [codeEmail, setCodeEmail] = useState("");
+  const [codeValue, setCodeValue] = useState("");
+  const [codePw1, setCodePw1] = useState("");
+  const [codePw2, setCodePw2] = useState("");
+  const [codeError, setCodeError] = useState(null);
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeDone, setCodeDone] = useState(false);
   const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get("token"));
   // Synchron beim ersten Render prüfen, nicht erst im onAuthStateChange-Listener:
   // supabase-js verarbeitet den Recovery-Hash aus der URL bereits beim Erstellen
@@ -2045,15 +2052,50 @@ export default function App() {
           {loginView==="reset" ? (
             <div>
               <h2 className="text-xl font-semibold text-slate-900 mb-1">Passwort zurücksetzen</h2>
-              <p className="text-sm text-slate-600 mb-5 leading-relaxed">Gib deine E-Mail-Adresse ein. Du erhältst einen Link, um ein neues Passwort zu setzen.</p>
+              <p className="text-sm text-slate-600 mb-5 leading-relaxed">Gib deine E-Mail-Adresse ein. Du erhältst einen Code, um ein neues Passwort zu setzen.</p>
               {resetResult
                 ? <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-3 text-sm">{resetResult}</div>
                 : <div className="flex flex-col gap-3">
                     <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" className={twInputLg} />
-                    <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message?.includes("rate limit")?"Gerade zu viele Anfragen – bitte in ein paar Minuten erneut versuchen oder einen Admin um einen Passwort-Link bitten.":error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} className={twBtnPrimaryLg}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
+                    <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message?.includes("rate limit")?"Gerade zu viele Anfragen – bitte in ein paar Minuten erneut versuchen oder einen Admin um einen Passwort-Code bitten.":error.message);}else{setResetResult("Code wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} className={twBtnPrimaryLg}>{resetLoading?"Wird gesendet…":"Code senden"}</button>
                   </div>
               }
-              <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} className={`${twLink} mt-4`}>← Zurück zur Anmeldung</button>
+              <div className="flex justify-between mt-4">
+                <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} className={twLink}>← Zurück zur Anmeldung</button>
+                <button type="button" onClick={()=>{setLoginView("code");setCodeEmail(resetEmail);}} className={twLink}>Ich habe bereits einen Code</button>
+              </div>
+            </div>
+          ) : loginView==="code" ? (
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900 mb-1">Code eingeben</h2>
+              {codeDone ? (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-3 text-sm">Passwort geändert! Du kannst dich jetzt anmelden.</div>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-600 mb-5 leading-relaxed">Gib den Code aus der E-Mail (oder von deinem Admin) sowie dein neues Passwort ein.</p>
+                  <form onSubmit={async e=>{
+                    e.preventDefault(); setCodeError(null);
+                    if (codePw1.length < 12) { setCodeError("Das Passwort muss mindestens 12 Zeichen lang sein."); return; }
+                    if (codePw1 !== codePw2) { setCodeError("Die Passwörter stimmen nicht überein."); return; }
+                    setCodeLoading(true);
+                    const { error: verifyErr } = await supabase.auth.verifyOtp({ email: codeEmail, token: codeValue.trim(), type: "recovery" });
+                    if (verifyErr) { setCodeError(verifyErr.message); setCodeLoading(false); return; }
+                    const { error: updateErr } = await supabase.auth.updateUser({ password: codePw1 });
+                    if (updateErr) { setCodeError(updateErr.message); setCodeLoading(false); return; }
+                    await supabase.auth.signOut();
+                    setCodeDone(true);
+                    setCodeLoading(false);
+                  }} className="flex flex-col gap-3">
+                    <div><label className={twLabelLg}>E-Mail</label><input type="email" value={codeEmail} onChange={e=>setCodeEmail(e.target.value)} placeholder="vorname.nachname@pallinetz.de" required className={twInputLg} /></div>
+                    <div><label className={twLabelLg}>Code</label><input value={codeValue} onChange={e=>setCodeValue(e.target.value)} placeholder="z.B. 06473942" required className={twInputLg} /></div>
+                    <PwField label="Neues Passwort" value={codePw1} onChange={e=>setCodePw1(e.target.value)} placeholder="Mindestens 12 Zeichen" autoComplete="new-password" labelClassName={twLabelLg} inputClassName={`${twInputLg} pr-11`} />
+                    <PwField label="Passwort bestätigen" value={codePw2} onChange={e=>setCodePw2(e.target.value)} placeholder="Wiederholen" autoComplete="new-password" labelClassName={twLabelLg} inputClassName={`${twInputLg} pr-11`} />
+                    {codeError && <p className="text-sm text-red-600 m-0">{codeError}</p>}
+                    <button type="submit" disabled={codeLoading} className={`${twBtnPrimaryLg} mt-1`}>{codeLoading?"Wird gespeichert…":"Passwort setzen"}</button>
+                  </form>
+                </>
+              )}
+              <button type="button" onClick={()=>{setLoginView("login");setCodeDone(false);setCodeError(null);}} className={`${twLink} mt-4`}>← Zurück zur Anmeldung</button>
             </div>
           ) : (
             <div>
