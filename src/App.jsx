@@ -1914,13 +1914,22 @@ export default function App() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetResult, setResetResult] = useState(null);
   const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get("token"));
-  const [recoveryMode, setRecoveryMode] = useState(false);
+  // Synchron beim ersten Render prüfen, nicht erst im onAuthStateChange-Listener:
+  // supabase-js verarbeitet den Recovery-Hash aus der URL bereits beim Erstellen
+  // des Clients (Modul-Ebene, vor React) und feuert PASSWORD_RECOVERY oft, BEVOR
+  // unser Listener im useEffect überhaupt angemeldet ist - das Event kam dadurch
+  // nie an und man landete stattdessen auf der normalen Login-Seite.
+  const [recoveryMode, setRecoveryMode] = useState(() => window.location.hash.includes("type=recovery"));
 
   useEffect(() => {
     // Supabase-Recovery-Link im PKCE-Format (?code=...) - wird von supabase-js
     // anders als der Hash-basierte Legacy-Flow NICHT automatisch eingelöst.
     const code = new URLSearchParams(window.location.search).get("code");
-    if (code) supabase.auth.exchangeCodeForSession(window.location.href).catch(console.error);
+    if (code) {
+      supabase.auth.exchangeCodeForSession(window.location.href).then(({ error }) => {
+        if (!error) setRecoveryMode(true);
+      });
+    }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
