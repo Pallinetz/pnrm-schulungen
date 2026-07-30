@@ -1959,12 +1959,19 @@ export default function App() {
     });
   }, [user]);
 
+  // Admins laden die volle Tabelle (Name/E-Mail/Rolle, für die Mitarbeiter-Verwaltung).
+  // Alle anderen laden nur die schlanke Public-View (id+profil) - das reicht für
+  // effectiveEmpfaenger() und die Kennzahl "Mitarbeiter", ohne Kolleg:innen-Daten
+  // preiszugeben (auf Datenbankebene abgesichert, nicht nur in der Oberfläche versteckt).
   const loadMitarbeiter = () => {
-    supabase.from("mitarbeiter").select("*").order("name").then(({ data, error }) => {
+    const query = isAdmin
+      ? supabase.from("mitarbeiter").select("*").order("name")
+      : supabase.from("mitarbeiter_profile_public").select("*");
+    query.then(({ data, error }) => {
       if (!error && data) setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
     });
   };
-  useEffect(() => { if (user) loadMitarbeiter(); }, [user]);
+  useEffect(() => { if (user) loadMitarbeiter(); }, [user, isAdmin]);
 
   async function checkAdmin(email) {
     const { data, error } = await supabase.from("mitarbeiter").select("rolle").eq("email", email).single();
