@@ -929,6 +929,55 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
   const [editId, setEditId] = useState(null);
   const [draft, setDraft] = useState({});
 
+  // ── Mehrfachauswahl für bestehende Mitarbeiter (bearbeiten/einladen in Serie) ──
+  const [selected, setSelected] = useState(new Set());
+  const toggleSelect = id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allSelected = ma.length > 0 && ma.every(m => selected.has(m.id));
+  const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set(ma.map(m => m.id)));
+
+  const [bulkProfil, setBulkProfil] = useState([]);
+  const [bulkRolle, setBulkRolle] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkResending, setBulkResending] = useState(false);
+  const [bulkResults, setBulkResults] = useState(null);
+
+  const applyBulkEdit = async () => {
+    const patch = {};
+    if (bulkProfil.length) patch.profil = bulkProfil;
+    if (bulkRolle) patch.rolle = bulkRolle;
+    if (!Object.keys(patch).length) { showToast("Bitte Profil und/oder Rolle wählen."); return; }
+    setBulkSaving(true);
+    const ids = [...selected];
+    const { error } = await supabase.from("mitarbeiter").update(patch).in("id", ids);
+    setBulkSaving(false);
+    if (error) { showToast(`Fehler: ${error.message}`); return; }
+    setMa(m => m.map(x => selected.has(x.id) ? { ...x, ...patch } : x));
+    showToast(`${ids.length} Mitarbeiter aktualisiert.`);
+    setBulkProfil([]); setBulkRolle("");
+  };
+
+  const bulkResendInvites = async () => {
+    setBulkResending(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const targets = ma.filter(m => selected.has(m.id));
+    const out = [];
+    for (const m of targets) {
+      try {
+        const res = await supabase.functions.invoke("send-invitation-email", {
+          body: { action: "create_link_schulungen", email: m.email, name: m.name, rolle: m.rolle },
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (res.error) throw new Error(res.error.message);
+        if (res.data?.error) throw new Error(res.data.error);
+        out.push({ name: m.name, email: m.email, url: res.data.url, ok: true });
+      } catch (err) {
+        out.push({ name: m.name, email: m.email, error: err.message, ok: false });
+      }
+    }
+    setBulkResults(out);
+    setBulkResending(false);
+  };
+
   const updateMitarbeiter = async (id, patch) => {
     setSavingId(id);
     const { error } = await supabase.from("mitarbeiter").update(patch).eq("id", id);
@@ -984,6 +1033,54 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
         </div>
       </div>
 
+      {isAdmin && ma.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.muted, cursor: "pointer" }}>
+            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ accentColor: C.blue, width: 16, height: 16 }} />
+            Alle auswählen
+          </label>
+          {selected.size > 0 && <span style={{ fontSize: 13, color: C.muted }}>{selected.size} ausgewählt</span>}
+        </div>
+      )}
+
+      {selected.size > 0 && (
+        <div style={{ ...css.section, padding: "12px 14px", marginTop: 0, background: C.blueDim, border: `1px solid ${C.blueBorder}` }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <button onClick={bulkResendInvites} disabled={bulkResending} style={{ ...css.btn, fontSize: 13, padding: "7px 13px", opacity: bulkResending ? 0.65 : 1 }}>
+              {bulkResending ? "Erstelle Links…" : `📧 Einladung an ${selected.size} erneut senden`}
+            </button>
+            <button onClick={() => setSelected(new Set())} style={{ ...css.btnSec, fontSize: 13, padding: "7px 13px" }}>Auswahl aufheben</button>
+          </div>
+          {isSuperAdmin && (
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.blueBorder}` }}>
+              <div>
+                <label style={css.lbl}>Profil für alle {selected.size} setzen</label>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  {PROFILE.map(p => (
+                    <label key={p} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, cursor: "pointer" }}>
+                      <input type="checkbox" checked={bulkProfil.includes(p)} onChange={() => setBulkProfil(v => v.includes(p) ? v.filter(x => x !== p) : [...v, p])} />
+                      {p}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={css.lbl}>Rolle für alle setzen</label>
+                <select value={bulkRolle} onChange={e => setBulkRolle(e.target.value)} style={{ ...css.inp, padding: "6px 10px", fontSize: 13 }}>
+                  <option value="">– unverändert –</option>
+                  <option value="user">Nutzer</option>
+                  <option value="admin">Admin</option>
+                  <option value="super_admin">Super-Admin</option>
+                </select>
+              </div>
+              <button onClick={applyBulkEdit} disabled={bulkSaving || (!bulkProfil.length && !bulkRolle)} style={{ ...css.btn, fontSize: 13, padding: "7px 13px", opacity: (bulkSaving || (!bulkProfil.length && !bulkRolle)) ? 0.65 : 1 }}>
+                {bulkSaving ? "Speichert…" : "Übernehmen"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {ma.length === 0 ? (
         <div style={{ textAlign: "center", padding: "2rem", color: C.muted }}>Noch keine Mitarbeiter. Laden Sie welche ein!</div>
       ) : (
@@ -996,7 +1093,14 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                 ...css.section,
                 padding: "12px 14px",
                 borderLeft: `4px solid ${bestaetigt ? C.blue : "#fbbf24"}`,
+                display: "flex",
+                gap: 10,
+                alignItems: editing ? "flex-start" : "center",
               }}>
+              {isAdmin && (
+                <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggleSelect(m.id)} style={{ accentColor: C.blue, width: 16, height: 16, marginTop: editing ? 4 : 0, flexShrink: 0 }} />
+              )}
+              <div style={{ flex: 1 }}>
               {editing ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -1089,6 +1193,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                 </div>
               )}
               </div>
+              </div>
             );
           })}
         </div>
@@ -1114,6 +1219,32 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
             showToast={showToast}
             onInviteSent={onRefresh}
           />
+        </Modal>
+      )}
+
+      {bulkResults && (
+        <Modal onClose={() => { setBulkResults(null); setSelected(new Set()); }}>
+          <h2 style={{ margin: "0 0 14px", fontSize: 20 }}>Einladungslinks erstellt</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 340, overflowY: "auto" }}>
+            {bulkResults.map((r, i) => (
+              <div key={i} style={{ ...css.section, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: `4px solid ${r.ok ? C.blue : "#dc2626"}` }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{r.name}</div>
+                  <div style={{ fontSize: 12, color: C.muted }}>{r.email}</div>
+                  {!r.ok && <div style={{ fontSize: 12, color: "#dc2626", marginTop: 3 }}>Fehler: {r.error}</div>}
+                </div>
+                {r.ok && (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => navigator.clipboard.writeText(r.url)} style={{ ...css.btnSec, fontSize: 12, padding: "5px 10px" }}>Link kopieren</button>
+                    <button onClick={() => { window.location.href = buildInviteMail(r.name, r.email, r.url, "schulungen"); }} style={{ ...css.btn, fontSize: 12, padding: "5px 10px" }}>In Outlook öffnen</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+            <button onClick={() => { setBulkResults(null); setSelected(new Set()); }} style={css.btnSec}>Schließen</button>
+          </div>
         </Modal>
       )}
 
