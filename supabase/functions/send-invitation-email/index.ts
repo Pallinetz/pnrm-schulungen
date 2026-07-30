@@ -103,13 +103,22 @@ Deno.serve(async (req) => {
     if (action === 'admin_reset_password_link') {
       const { email: targetEmail } = body
       if (!targetEmail) throw new Error('E-Mail fehlt')
-      const { data, error } = await admin.auth.admin.generateLink({
-        type: 'recovery',
-        email: targetEmail,
-        options: { redirectTo: 'https://pnrm-schulungen.vercel.app' },
+      const genRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/admin/generate_link`, {
+        method: 'POST',
+        headers: {
+          apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'recovery',
+          email: targetEmail,
+          options: { redirect_to: 'https://pnrm-schulungen.vercel.app' },
+        }),
       })
-      if (error) throw new Error(error.message)
-      return new Response(JSON.stringify({ url: data.properties.action_link }), { headers: { ...cors, 'Content-Type': 'application/json' } })
+      const genData = await genRes.json()
+      if (!genRes.ok) throw new Error(genData.msg || genData.message || 'Link konnte nicht erstellt werden')
+      return new Response(JSON.stringify({ url: genData.action_link }), { headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
     throw new Error('Unbekannte Aktion')
