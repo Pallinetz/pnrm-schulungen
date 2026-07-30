@@ -683,6 +683,12 @@ function buildInviteMail(name, email, url, app) {
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
+function buildResetMail(name, email, url) {
+  const subject = "Passwort zurücksetzen – Palliativ Netzwerk Rhein-Maas";
+  const body = `Hallo ${name},\n\nauf deinen Wunsch hier ein Link, um dein Passwort für Schulungen & Wissen neu zu setzen:\n${url}\n\nDer Link ist aus Sicherheitsgründen nur begrenzt gültig. Falls du das nicht angefordert hast, kannst du diese Mail ignorieren.\n\n`;
+  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 
 // Feste Spaltenreihenfolge: Nachname, Vorname, E-Mail, Abteilung. Erste Zeile
 // gilt immer als Kopfzeile und wird übersprungen (Inhalt egal).
@@ -1068,6 +1074,24 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
     setResending(null);
   };
 
+  const sendResetLink = async (email, name) => {
+    setResending(email);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("send-invitation-email", {
+        body: { action: "admin_reset_password_link", email },
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (res.data?.error) throw new Error(res.data.error);
+      showToast(`Reset-Link für ${email} erstellt – Outlook öffnet sich.`);
+      window.location.href = buildResetMail(name, email, res.data.url);
+    } catch (e) {
+      showToast(`Fehler: ${e.message}`);
+    }
+    setResending(null);
+  };
+
   const deleteUser = async (id, email) => {
     const { error } = await supabase.from("mitarbeiter").delete().eq("id", id);
     if (error) { showToast(`Fehler: ${error.message}`); return; }
@@ -1235,6 +1259,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                       <ActionsMenu items={[
                         isAdmin && { label: "Bearbeiten", onClick: () => startEdit(m) },
                         { label: resending === m.email ? "Wird gesendet…" : "Erneut senden", onClick: () => resendInvite(m.email, m.name, m.rolle), disabled: resending === m.email },
+                        isAdmin && { label: "Passwort-Link senden", onClick: () => sendResetLink(m.email, m.name), disabled: resending === m.email },
                         isAdmin && { label: "Löschen", onClick: () => deleteUser(m.id, m.email), danger: true },
                       ]} />
                     </td>
@@ -1957,7 +1982,7 @@ export default function App() {
                 ? <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-3 text-sm">{resetResult}</div>
                 : <div className="flex flex-col gap-3">
                     <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" className={twInputLg} />
-                    <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} className={twBtnPrimaryLg}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
+                    <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message?.includes("rate limit")?"Gerade zu viele Anfragen – bitte in ein paar Minuten erneut versuchen oder einen Admin um einen Passwort-Link bitten.":error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} className={twBtnPrimaryLg}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
                   </div>
               }
               <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} className={`${twLink} mt-4`}>← Zurück zur Anmeldung</button>
