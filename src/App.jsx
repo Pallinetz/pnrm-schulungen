@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { MoreHorizontal } from "lucide-react";
 import * as XLSX from "xlsx";
 import { VideoUploader } from "./components/VideoUploader";
 import { VideoPlayer } from "./components/VideoPlayer";
@@ -80,19 +81,27 @@ function schulungFromDb(r) {
   return s;
 }
 
+// ─── Tailwind-Tokens (neu gestaltete Bereiche: Login, Mitarbeiter-Tabelle) ─────
+const twInput = "w-full bg-white border border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 rounded-lg py-2.5 px-3.5 text-sm transition-all outline-none text-slate-900 placeholder:text-slate-400";
+const twLabel = "block text-xs font-medium text-slate-500 mb-1";
+const twBtnPrimary = "rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
+const twBtnSecondary = "rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
+const twBadge = "inline-flex items-center bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-md font-normal";
+const twLink = "bg-transparent border-0 p-0 text-sm text-blue-700 hover:text-blue-800 cursor-pointer font-sans";
+
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const css = {
-  section: { background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:20, margin:"12px 0", boxShadow:"0 1px 2px rgba(22,35,58,.04)" },
-  inp: { width:"100%", fontSize:14, padding:"10px 14px", border:`1px solid ${C.inputBorder}`, borderRadius:9, background:C.white, color:C.text, boxSizing:"border-box", fontFamily:FONT, outline:"none", transition:"border-color .15s ease, box-shadow .15s ease" },
+  section: { background:C.white, border:`1px solid ${C.border}`, borderRadius:8, padding:20, margin:"12px 0", boxShadow:"0 1px 2px rgba(22,35,58,.04)" },
+  inp: { width:"100%", fontSize:14, padding:"10px 14px", border:`1px solid ${C.inputBorder}`, borderRadius:8, background:C.white, color:C.text, boxSizing:"border-box", fontFamily:FONT, outline:"none", transition:"border-color .15s ease, box-shadow .15s ease" },
   lbl: { display:"block", fontWeight:600, marginBottom:4, fontSize:13, color:C.text },
-  btn: { appearance:"none", border:0, borderRadius:9, background:`linear-gradient(180deg, #35577E, ${C.navy})`, color:C.white, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 3px rgba(30,52,82,.3), inset 0 1px 0 rgba(255,255,255,.08)", transition:"transform .12s ease, box-shadow .12s ease" },
-  btnSec: { appearance:"none", borderRadius:9, background:C.white, color:C.navy, border:`1px solid ${C.inputBorder}`, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 2px rgba(22,35,58,.05)", transition:"border-color .12s ease, box-shadow .12s ease" },
+  btn: { appearance:"none", border:0, borderRadius:8, background:`linear-gradient(180deg, #35577E, ${C.navy})`, color:C.white, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 3px rgba(30,52,82,.3), inset 0 1px 0 rgba(255,255,255,.08)", transition:"transform .12s ease, box-shadow .12s ease" },
+  btnSec: { appearance:"none", borderRadius:8, background:C.white, color:C.navy, border:`1px solid ${C.inputBorder}`, padding:"9px 16px", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 2px rgba(22,35,58,.05)", transition:"border-color .12s ease, box-shadow .12s ease" },
   btnDanger: { background:C.bad.bg, color:C.bad.text, border:`1px solid ${C.bad.border}`, borderRadius:8, padding:"6px 12px", fontWeight:600, fontSize:13, cursor:"pointer", appearance:"none", fontFamily:FONT },
   good: { background:C.good.bg, border:`1px solid ${C.good.border}`, color:C.good.text, padding:"12px 16px", borderRadius:8, fontSize:14 },
   bad:  { background:C.bad.bg,  border:`1px solid ${C.bad.border}`,  color:C.bad.text,  padding:"12px 16px", borderRadius:8, fontSize:14 },
   notice: { background:C.warn.bg, border:`1px solid ${C.warn.border}`, color:C.warn.text, padding:"12px 16px", borderRadius:8, fontSize:14 },
   module: { borderLeft:`4px solid ${C.navy}`, paddingLeft:14, margin:"16px 0" },
-  badge: { display:"inline-block", background:C.blueDim, color:C.navy, padding:"4px 10px", borderRadius:20, fontWeight:600, fontSize:12 },
+  badge: { display:"inline-block", background:C.blueDim, color:C.navy, padding:"4px 10px", borderRadius:6, fontWeight:600, fontSize:12 },
   docmeta: { display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginTop:12, fontSize:13 },
   docmetaCell: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:8, padding:"8px 10px" },
   qBox: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:10, padding:"13px 15px", marginBottom:12 },
@@ -130,7 +139,7 @@ function proofCode(kuerzel) {
 function Modal({ onClose, children, wide }) {
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,backdropFilter:"blur(3px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white,borderRadius:18,padding:28,width:wide?"94%":"90%",maxWidth:wide?1000:700,maxHeight:"92vh",overflowY:"auto",position:"relative",boxShadow:"0 24px 64px rgba(0,0,0,.18)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white,borderRadius:8,padding:28,width:wide?"94%":"90%",maxWidth:wide?1000:700,maxHeight:"92vh",overflowY:"auto",position:"relative",boxShadow:"0 24px 64px rgba(0,0,0,.18)" }}>
         <button onClick={onClose} style={{ position:"absolute",top:13,right:16,background:"none",border:"none",fontSize:20,color:C.muted,cursor:"pointer",lineHeight:1 }}>✕</button>
         {children}
       </div>
@@ -920,6 +929,40 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
   );
 }
 
+function ActionsMenu({ items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+  const visible = items.filter(Boolean);
+  return (
+    <div ref={ref} className="relative inline-block text-left">
+      <button type="button" onClick={() => setOpen(o => !o)} aria-label="Aktionen" className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+        <MoreHorizontal size={16} />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white shadow-lg py-1">
+          {visible.map((it, i) => (
+            <button
+              key={i}
+              type="button"
+              disabled={it.disabled}
+              onClick={() => { setOpen(false); it.onClick(); }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed ${it.danger ? "text-red-600" : "text-slate-700"}`}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -1024,56 +1067,56 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
   };
 
   return (
-    <div style={{ fontFamily: FONT }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <h2 style={{ margin: 0, fontSize: 20 }}>👥 Mitarbeiter</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          {isAdmin && <button onClick={() => setBulkOpen(true)} style={{ ...css.btnSec, fontSize: 13, padding: "8px 14px" }}>📊 Mitarbeiter importieren (Excel/CSV)</button>}
-          {isAdmin && <button onClick={() => setInviteOpen(true)} style={{ ...css.btn, fontSize: 13, padding: "8px 14px" }}>+ Mitarbeiter einladen</button>}
+    <div className="font-sans">
+      <div className="flex justify-between items-center mb-5 gap-3 flex-wrap">
+        <h2 className="m-0 text-xl font-semibold text-slate-900">Mitarbeiter</h2>
+        <div className="flex gap-2">
+          {isAdmin && <button onClick={() => setBulkOpen(true)} className={`${twBtnSecondary} text-sm px-3.5 py-2`}>Importieren (Excel/CSV)</button>}
+          {isAdmin && <button onClick={() => setInviteOpen(true)} className={`${twBtnPrimary} text-sm px-3.5 py-2`}>+ Mitarbeiter einladen</button>}
         </div>
       </div>
 
       {isAdmin && ma.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.muted, cursor: "pointer" }}>
-            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ accentColor: C.blue, width: 16, height: 16 }} />
+        <div className="flex items-center gap-3 mb-3">
+          <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer select-none">
+            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-300 accent-slate-900" />
             Alle auswählen
           </label>
-          {selected.size > 0 && <span style={{ fontSize: 13, color: C.muted }}>{selected.size} ausgewählt</span>}
+          {selected.size > 0 && <span className="text-sm text-slate-500">{selected.size} ausgewählt</span>}
         </div>
       )}
 
       {selected.size > 0 && (
-        <div style={{ ...css.section, padding: "12px 14px", marginTop: 0, background: C.blueDim, border: `1px solid ${C.blueBorder}` }}>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <button onClick={bulkResendInvites} disabled={bulkResending} style={{ ...css.btn, fontSize: 13, padding: "7px 13px", opacity: bulkResending ? 0.65 : 1 }}>
-              {bulkResending ? "Erstelle Links…" : `📧 Einladung an ${selected.size} erneut senden`}
+        <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3 mb-4">
+          <div className="flex gap-3 flex-wrap items-center">
+            <button onClick={bulkResendInvites} disabled={bulkResending} className={`${twBtnPrimary} text-sm px-3.5 py-2`}>
+              {bulkResending ? "Erstelle Links…" : `Einladung an ${selected.size} erneut senden`}
             </button>
-            <button onClick={() => setSelected(new Set())} style={{ ...css.btnSec, fontSize: 13, padding: "7px 13px" }}>Auswahl aufheben</button>
+            <button onClick={() => setSelected(new Set())} className={`${twBtnSecondary} text-sm px-3.5 py-2`}>Auswahl aufheben</button>
           </div>
           {isSuperAdmin && (
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.blueBorder}` }}>
+            <div className="flex gap-5 flex-wrap items-end mt-3 pt-3 border-t border-blue-200">
               <div>
-                <label style={css.lbl}>Profil für alle {selected.size} setzen</label>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <label className={twLabel}>Profil für alle {selected.size} setzen</label>
+                <div className="flex gap-3 flex-wrap">
                   {PROFILE.map(p => (
-                    <label key={p} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, cursor: "pointer" }}>
-                      <input type="checkbox" checked={bulkProfil.includes(p)} onChange={() => setBulkProfil(v => v.includes(p) ? v.filter(x => x !== p) : [...v, p])} />
+                    <label key={p} className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer select-none">
+                      <input type="checkbox" checked={bulkProfil.includes(p)} onChange={() => setBulkProfil(v => v.includes(p) ? v.filter(x => x !== p) : [...v, p])} className="rounded border-slate-300" />
                       {p}
                     </label>
                   ))}
                 </div>
               </div>
               <div>
-                <label style={css.lbl}>Rolle für alle setzen</label>
-                <select value={bulkRolle} onChange={e => setBulkRolle(e.target.value)} style={{ ...css.inp, padding: "6px 10px", fontSize: 13 }}>
+                <label className={twLabel}>Rolle für alle setzen</label>
+                <select value={bulkRolle} onChange={e => setBulkRolle(e.target.value)} className={`${twInput} py-2 px-3 w-auto`}>
                   <option value="">– unverändert –</option>
                   <option value="user">Nutzer</option>
                   <option value="admin">Admin</option>
                   <option value="super_admin">Super-Admin</option>
                 </select>
               </div>
-              <button onClick={applyBulkEdit} disabled={bulkSaving || (!bulkProfil.length && !bulkRolle)} style={{ ...css.btn, fontSize: 13, padding: "7px 13px", opacity: (bulkSaving || (!bulkProfil.length && !bulkRolle)) ? 0.65 : 1 }}>
+              <button onClick={applyBulkEdit} disabled={bulkSaving || (!bulkProfil.length && !bulkRolle)} className={`${twBtnPrimary} text-sm px-3.5 py-2`}>
                 {bulkSaving ? "Speichert…" : "Übernehmen"}
               </button>
             </div>
@@ -1082,120 +1125,110 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
       )}
 
       {ma.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "2rem", color: C.muted }}>Noch keine Mitarbeiter. Laden Sie welche ein!</div>
+        <div className="text-center py-12 text-slate-500">Noch keine Mitarbeiter. Laden Sie welche ein!</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {ma.map(m => {
-            const bestaetigt = m.bestaetigt || false;
-            const editing = editId === m.id;
-            return (
-              <div key={m.email || m.id} style={{
-                ...css.section,
-                padding: "12px 14px",
-                borderLeft: `4px solid ${bestaetigt ? C.blue : "#fbbf24"}`,
-                display: "flex",
-                gap: 10,
-                alignItems: editing ? "flex-start" : "center",
-              }}>
-              {isAdmin && (
-                <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggleSelect(m.id)} style={{ accentColor: C.blue, width: 16, height: 16, marginTop: editing ? 4 : 0, flexShrink: 0 }} />
-              )}
-              <div style={{ flex: 1 }}>
-              {editing ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <div><label style={css.lbl}>Name</label><input value={draft.name} onChange={e=>setDraft(d=>({...d,name:e.target.value}))} style={css.inp} /></div>
-                    <div>
-                      <label style={css.lbl}>E-Mail</label>
-                      <input type="email" value={draft.email} onChange={e=>setDraft(d=>({...d,email:e.target.value}))} style={css.inp} />
-                      {draft.email !== m.email && <div style={{ fontSize:11, color:C.warn.text, marginTop:3 }}>Hinweis: der Login-Zugang bleibt an die bisherige Adresse gebunden – bei dauerhafter Änderung ggf. neu einladen.</div>}
-                    </div>
-                  </div>
-                  {isSuperAdmin && (
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <div>
-                        <label style={css.lbl}>Rolle</label>
-                        <select
-                          value={draft.rolle}
-                          disabled={m.email === user.email}
-                          title={m.email === user.email ? "Eigene Rolle nicht über die eigene Ansicht änderbar" : undefined}
-                          onChange={e=>setDraft(d=>({...d,rolle:e.target.value}))}
-                          style={{ ...css.inp, padding:"6px 10px", fontSize:13 }}
-                        >
-                          <option value="user">Nutzer</option>
-                          <option value="admin">Admin</option>
-                          <option value="super_admin">Super-Admin</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={css.lbl}>Profil (Mehrfachauswahl möglich)</label>
-                        <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
-                          {PROFILE.map(p => (
-                            <label key={p} style={{ display:"flex", alignItems:"center", gap:5, fontSize:13, cursor:"pointer" }}>
-                              <input type="checkbox" checked={draft.profil.includes(p)} onChange={()=>setDraft(d=>({...d, profil: d.profil.includes(p) ? d.profil.filter(x=>x!==p) : [...d.profil,p]}))} />
-                              {p}
-                            </label>
-                          ))}
+        <div className="border border-slate-200 rounded-lg bg-white overflow-x-auto">
+          <table className="w-full text-sm border-collapse min-w-[640px]">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/60">
+                {isAdmin && <th className="w-10 px-4 py-2.5"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-300 accent-slate-900" /></th>}
+                <th className="text-left px-3 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wide">Name</th>
+                <th className="text-left px-3 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wide">Rollen</th>
+                <th className="text-left px-3 py-2.5 font-medium text-slate-500 text-xs uppercase tracking-wide">Status</th>
+                <th className="w-10 px-3 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {ma.map(m => {
+                const bestaetigt = m.bestaetigt || false;
+                const editing = editId === m.id;
+                const colCount = isAdmin ? 5 : 4;
+
+                if (editing) return (
+                  <tr key={m.email || m.id} className="border-b border-slate-100 last:border-b-0 bg-slate-50/60">
+                    <td colSpan={colCount} className="p-4">
+                      <div className="flex flex-col gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div><label className={twLabel}>Name</label><input value={draft.name} onChange={e=>setDraft(d=>({...d,name:e.target.value}))} className={twInput} /></div>
+                          <div>
+                            <label className={twLabel}>E-Mail</label>
+                            <input type="email" value={draft.email} onChange={e=>setDraft(d=>({...d,email:e.target.value}))} className={twInput} />
+                            {draft.email !== m.email && <div className="text-xs text-amber-700 mt-1">Hinweis: der Login-Zugang bleibt an die bisherige Adresse gebunden – bei dauerhafter Änderung ggf. neu einladen.</div>}
+                          </div>
+                        </div>
+                        {isSuperAdmin && (
+                          <div className="flex gap-4 flex-wrap">
+                            <div>
+                              <label className={twLabel}>Rolle</label>
+                              <select
+                                value={draft.rolle}
+                                disabled={m.email === user.email}
+                                title={m.email === user.email ? "Eigene Rolle nicht über die eigene Ansicht änderbar" : undefined}
+                                onChange={e=>setDraft(d=>({...d,rolle:e.target.value}))}
+                                className={`${twInput} py-2 px-3 w-auto`}
+                              >
+                                <option value="user">Nutzer</option>
+                                <option value="admin">Admin</option>
+                                <option value="super_admin">Super-Admin</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className={twLabel}>Profil (Mehrfachauswahl möglich)</label>
+                              <div className="flex gap-3 flex-wrap pt-1.5">
+                                {PROFILE.map(p => (
+                                  <label key={p} className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked={draft.profil.includes(p)} onChange={()=>setDraft(d=>({...d, profil: d.profil.includes(p) ? d.profil.filter(x=>x!==p) : [...d.profil,p]}))} className="rounded border-slate-300" />
+                                    {p}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={cancelEdit} className={`${twBtnSecondary} text-sm px-3.5 py-2`}>Abbrechen</button>
+                          <button onClick={()=>saveEdit(m)} disabled={savingId===m.id} className={`${twBtnPrimary} text-sm px-3.5 py-2`}>{savingId===m.id?"Speichert…":"Speichern"}</button>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                    <button onClick={cancelEdit} style={{ ...css.btnSec, padding: "6px 13px", fontSize: 13 }}>Abbrechen</button>
-                    <button onClick={()=>saveEdit(m)} disabled={savingId===m.id} style={{ ...css.btn, padding: "6px 13px", fontSize: 13, opacity: savingId===m.id?0.65:1 }}>{savingId===m.id?"Speichert…":"Speichern"}</button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{m.name}</div>
-                  <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{m.email}</div>
-                  <div style={{ fontSize: 11, marginTop: 4, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <span style={{
-                      background: m.rolle === "admin" || m.rolle === "super_admin" ? C.blueDim : "#f3f4f6",
-                      color: m.rolle === "admin" || m.rolle === "super_admin" ? C.blue : "#6b7280",
-                      padding: "1px 7px",
-                      borderRadius: 20,
-                      fontWeight: 700,
-                    }}>
-                      {m.rolle === "super_admin" ? "Super-Admin" : m.rolle === "admin" ? "Admin" : "Nutzer"}
-                    </span>
-                    {m.profil?.map(p => <span key={p} style={{ background: "#f3f4f6", color: "#6b7280", padding: "1px 7px", borderRadius: 20, fontWeight: 700 }}>{p}</span>)}
-                    {bestaetigt
-                      ? <span style={{ color: C.muted }}>✓ Bestätigt</span>
-                      : <span style={{ color: "#f59e0b", fontWeight: 600 }}>⏳ Einladung ausstehend</span>
-                    }
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {isAdmin && (
-                    <button onClick={()=>startEdit(m)} style={{ ...css.btnSec, padding: "5px 11px", fontSize: 12 }}>✏️ Bearbeiten</button>
-                  )}
-                  <button
-                    onClick={() => resendInvite(m.email, m.name, m.rolle)}
-                    disabled={resending === m.email}
-                    style={{
-                      ...css.btnSec,
-                      padding: "5px 11px",
-                      fontSize: 12,
-                      opacity: resending === m.email ? 0.65 : 1,
-                    }}
-                  >
-                    {resending === m.email ? "Wird gesendet…" : "Erneut senden"}
-                  </button>
-                  <button
-                    onClick={() => deleteUser(m.id, m.email)}
-                    style={{ ...css.btnDanger, padding: "5px 11px" }}
-                  >
-                    ✕
-                  </button>
-                </div>
-                </div>
-              )}
-              </div>
-              </div>
-            );
-          })}
+                    </td>
+                  </tr>
+                );
+
+                return (
+                  <tr key={m.email || m.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60">
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggleSelect(m.id)} className="w-4 h-4 rounded border-slate-300 accent-slate-900" />
+                      </td>
+                    )}
+                    <td className="px-3 py-3">
+                      <div className="font-medium text-slate-900">{m.name}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">{m.email}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex gap-1.5 flex-wrap">
+                        <span className={twBadge}>{m.rolle === "super_admin" ? "Super-Admin" : m.rolle === "admin" ? "Admin" : "Nutzer"}</span>
+                        {m.profil?.map(p => <span key={p} className={twBadge}>{p}</span>)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${bestaetigt ? "text-emerald-700" : "text-amber-600"}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${bestaetigt ? "bg-emerald-500" : "bg-amber-400"}`} />
+                        {bestaetigt ? "Bestätigt" : "Einladung ausstehend"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <ActionsMenu items={[
+                        isAdmin && { label: "Bearbeiten", onClick: () => startEdit(m) },
+                        { label: resending === m.email ? "Wird gesendet…" : "Erneut senden", onClick: () => resendInvite(m.email, m.name, m.rolle), disabled: resending === m.email },
+                        isAdmin && { label: "Löschen", onClick: () => deleteUser(m.id, m.email), danger: true },
+                      ]} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -1626,14 +1659,18 @@ function EyeIcon({ off }) {
   );
 }
 
-function PwField({ label, value, onChange, placeholder, autoFocus, autoComplete }) {
+function PwField({ label, value, onChange, placeholder, autoFocus, autoComplete, inputClassName, labelClassName }) {
   const [show, setShow] = useState(false);
   return (
     <div>
-      <label style={css.lbl}>{label}</label>
+      <label className={labelClassName} style={labelClassName ? undefined : css.lbl}>{label}</label>
       <div style={{ position:"relative" }}>
-        <input type={show?"text":"password"} value={value} onChange={onChange} placeholder={placeholder} required autoFocus={autoFocus} autoComplete={autoComplete} style={{ ...css.inp, padding:"12px 42px 12px 16px" }} />
-        <button type="button" onClick={()=>setShow(s=>!s)} aria-label={show?"Passwort verbergen":"Passwort anzeigen"} style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", padding:6, display:"flex", color:C.muted }}>
+        <input
+          type={show?"text":"password"} value={value} onChange={onChange} placeholder={placeholder} required autoFocus={autoFocus} autoComplete={autoComplete}
+          className={inputClassName}
+          style={inputClassName ? undefined : { ...css.inp, padding:"12px 42px 12px 16px" }}
+        />
+        <button type="button" onClick={()=>setShow(s=>!s)} aria-label={show?"Passwort verbergen":"Passwort anzeigen"} style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", padding:6, display:"flex", color: inputClassName ? "#94a3b8" : C.muted }}>
           <EyeIcon off={show} />
         </button>
       </div>
@@ -1830,60 +1867,56 @@ export default function App() {
     <SetPasswordView token={inviteToken} onDone={() => { window.history.replaceState({}, "", window.location.pathname); window.location.reload(); }} />
   );
 
+  const twInputLg = `${twInput} py-3 px-4`;
+  const twLabelLg = "block text-sm font-medium text-slate-700 mb-1.5";
+  const twBtnPrimaryLg = `${twBtnPrimary} w-full py-3`;
+
   if (!user) return (
-    <div style={{ minHeight:"100vh", display:"flex", fontFamily:FONT, color:C.text }}>
+    <div className="min-h-screen flex font-sans">
       {/* Marken-Panel */}
-      <div className="pnrm-brandpanel" style={{ flex:"0 0 44%", background:`linear-gradient(165deg, ${C.navyDark} 0%, ${C.navy} 55%, #35597F 100%)`, color:C.white, display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"48px 52px", position:"relative", overflow:"hidden" }}>
-        <svg style={{ position:"absolute", bottom:-20, left:0, width:"140%", opacity:0.1, pointerEvents:"none" }} viewBox="0 0 1200 300" preserveAspectRatio="none">
-          <path d="M0,180 Q200,80 400,150 Q600,220 800,120 Q1000,20 1200,100 L1200,300 L0,300 Z" fill="#fff"/>
-        </svg>
-        <svg style={{ position:"absolute", top:40, right:-60, width:280, height:280, opacity:0.06, pointerEvents:"none" }} viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="48" fill="none" stroke="#fff" strokeWidth="0.8"/>
-          <circle cx="50" cy="50" r="34" fill="none" stroke="#fff" strokeWidth="0.8"/>
-          <circle cx="50" cy="50" r="20" fill="none" stroke="#fff" strokeWidth="0.8"/>
-        </svg>
+      <div className="hidden md:flex md:w-[44%] flex-col justify-between p-12 lg:p-14 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white relative overflow-hidden">
         <PNRMLogo compact={false} white />
-        <div style={{ position:"relative", zIndex:1 }}>
-          <div style={{ fontSize:12, fontWeight:600, letterSpacing:"2.5px", textTransform:"uppercase", opacity:0.55, marginBottom:14 }}>Schulungen &amp; Wissen</div>
-          <h1 style={{ margin:0, fontSize:30, fontWeight:700, lineHeight:1.25, letterSpacing:"-0.02em", maxWidth:380 }}>Wissen, das in der Versorgung ankommt.</h1>
-          <p style={{ margin:"14px 0 0", fontSize:14.5, lineHeight:1.6, opacity:0.72, maxWidth:360 }}>Die interne Schulungsplattform der Palliativ Netzwerk Rhein-Maas — Pflichtschulungen, Nachweise und Wissensdatenbank an einem Ort.</p>
+        <div className="relative z-10">
+          <div className="text-xs font-semibold tracking-[0.2em] uppercase text-blue-200/60 mb-3.5">Schulungen &amp; Wissen</div>
+          <h1 className="text-3xl font-semibold leading-relaxed tracking-tight max-w-sm">Wissen, das in der Versorgung ankommt.</h1>
+          <p className="mt-3.5 text-sm leading-relaxed text-slate-300 max-w-sm">Die interne Schulungsplattform der Palliativ Netzwerk Rhein-Maas — Pflichtschulungen, Nachweise und Wissensdatenbank an einem Ort.</p>
         </div>
-        <div style={{ fontSize:12, opacity:0.5, position:"relative", zIndex:1 }}>© Palliativ Netzwerk Rhein-Maas GmbH &amp; Co. KG</div>
+        <div className="text-xs text-slate-400 relative z-10">© Palliativ Netzwerk Rhein-Maas GmbH &amp; Co. KG</div>
       </div>
 
       {/* Formular-Panel */}
-      <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, padding:"40px 24px" }}>
-        <div style={{ width:"100%", maxWidth:400 }}>
-          <div className="pnrm-mobilelogo" style={{ display:"none", marginBottom:28, textAlign:"center" }}>
-            <img src="/logo.png" alt="PNRM" style={{ height:52 }} />
+      <div className="flex-1 flex items-center justify-center bg-slate-50 px-6 py-10">
+        <div className="w-full max-w-sm">
+          <div className="md:hidden mb-8 text-center">
+            <img src="/logo.png" alt="PNRM" className="h-12 mx-auto" />
           </div>
           {loginView==="reset" ? (
-            <div style={{ background:C.white, borderRadius:16, padding:"36px 34px", boxShadow:"0 1px 2px rgba(22,35,58,.05), 0 12px 40px rgba(46,75,110,.1)", border:`1px solid ${C.border}` }}>
-              <h2 style={{ margin:"0 0 8px", fontSize:20, fontWeight:700, letterSpacing:"-0.01em" }}>Passwort zurücksetzen</h2>
-              <p style={{ margin:"0 0 18px", fontSize:14, color:C.muted, lineHeight:1.55 }}>Gib deine E-Mail-Adresse ein. Du erhältst einen Link, um ein neues Passwort zu setzen.</p>
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900 mb-1">Passwort zurücksetzen</h2>
+              <p className="text-sm text-slate-600 mb-5 leading-relaxed">Gib deine E-Mail-Adresse ein. Du erhältst einen Link, um ein neues Passwort zu setzen.</p>
               {resetResult
-                ? <div style={css.good}>{resetResult}</div>
-                : <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                    <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" style={{ ...css.inp, padding:"12px 16px" }} />
-                    <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} style={{ ...css.btn, padding:"12px 16px", fontSize:14, width:"100%", opacity:(resetLoading||!resetEmail)?0.65:1 }}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
+                ? <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg px-4 py-3 text-sm">{resetResult}</div>
+                : <div className="flex flex-col gap-3">
+                    <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)} placeholder="E-Mail" className={twInputLg} />
+                    <button onClick={async()=>{ setResetLoading(true); const {error}=await supabase.auth.resetPasswordForEmail(resetEmail,{redirectTo:"https://pnrm-schulungen.vercel.app"}); if(error){alert(error.message);}else{setResetResult("Reset-Link wurde an deine Email gesendet.");} setResetLoading(false); }} disabled={resetLoading||!resetEmail} className={twBtnPrimaryLg}>{resetLoading?"Wird gesendet…":"Reset-Link senden"}</button>
                   </div>
               }
-              <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} style={{ background:"none", border:"none", color:C.blueAccent, cursor:"pointer", fontSize:13, marginTop:16, padding:0, fontFamily:FONT }}>← Zurück zur Anmeldung</button>
+              <button type="button" onClick={()=>{setLoginView("login");setResetResult(null);}} className={`${twLink} mt-4`}>← Zurück zur Anmeldung</button>
             </div>
           ) : (
-            <div style={{ background:C.white, borderRadius:16, padding:"36px 34px", boxShadow:"0 1px 2px rgba(22,35,58,.05), 0 12px 40px rgba(46,75,110,.1)", border:`1px solid ${C.border}` }}>
-              <h2 style={{ margin:"0 0 4px", fontSize:20, fontWeight:700, letterSpacing:"-0.01em" }}>Anmeldung</h2>
-              <p style={{ margin:"0 0 22px", fontSize:14, color:C.muted }}>Mit deinem PNRM-Konto fortfahren</p>
-              <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);} setLoginLoading(false); }} style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                <div><label style={css.lbl}>E-Mail</label><input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="vorname.nachname@pallinetz.de" required autoComplete="email" style={{ ...css.inp, padding:"12px 16px" }} /></div>
-                <PwField label="Passwort" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
-                {loginError&&<p style={{ margin:0, fontSize:13, color:C.bad.text }}>{loginError}</p>}
-                <button type="submit" disabled={loginLoading} style={{ ...css.btn, padding:"12px 16px", fontSize:14.5, width:"100%", marginTop:4, opacity:loginLoading?0.65:1 }}>{loginLoading?"Anmelden…":"Anmelden"}</button>
-                <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} style={{ background:"none", border:"none", color:C.blueAccent, cursor:"pointer", fontSize:13, padding:0, textAlign:"center", fontFamily:FONT }}>Passwort vergessen?</button>
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900 mb-1">Anmeldung</h2>
+              <p className="text-sm text-slate-600 mb-6">Mit deinem PNRM-Konto fortfahren</p>
+              <form onSubmit={async e=>{ e.preventDefault(); setLoginLoading(true); setLoginError(null); const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:loginPassword}); if(error){setLoginError(error.message);} setLoginLoading(false); }} className="flex flex-col gap-3">
+                <div><label className={twLabelLg}>E-Mail</label><input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="vorname.nachname@pallinetz.de" required autoComplete="email" className={twInputLg} /></div>
+                <PwField label="Passwort" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" labelClassName={twLabelLg} inputClassName={`${twInputLg} pr-11`} />
+                {loginError&&<p className="text-sm text-red-600 m-0">{loginError}</p>}
+                <button type="submit" disabled={loginLoading} className={`${twBtnPrimaryLg} mt-1`}>{loginLoading?"Anmelden…":"Anmelden"}</button>
+                <button type="button" onClick={()=>{setLoginView("reset");setResetEmail(loginEmail);}} className={`${twLink} text-center`}>Passwort vergessen?</button>
               </form>
             </div>
           )}
-          <p style={{ textAlign:"center", fontSize:12, color:C.muted, marginTop:20 }}>Zugang nur auf Einladung · Fragen an das Admin-Team</p>
+          <p className="text-center text-xs text-slate-500 mt-6">Zugang nur auf Einladung · Fragen an das Admin-Team</p>
         </div>
       </div>
     </div>
@@ -2005,14 +2038,12 @@ export default function App() {
         .hdrbtn:hover{background:rgba(255,255,255,.12)!important;filter:none!important}
         .hdrbtn-solid:hover{filter:brightness(.97)!important;box-shadow:0 2px 8px rgba(0,0,0,.2)!important}
         .ptab:hover{color:#2E4B6E!important;filter:none}
-        input:focus,textarea:focus,select:focus{border-color:#3A7CA5!important;outline:none!important;box-shadow:0 0 0 3px rgba(58,124,165,.13)!important}
+        input:focus,textarea:focus,select:focus{border-color:#3A7CA5;outline:none;box-shadow:0 0 0 3px rgba(58,124,165,.13)}
         ::-webkit-scrollbar{width:10px;height:10px}
         ::-webkit-scrollbar-thumb{background:#C5D0DE;border-radius:99px;border:2px solid #F0F4F8}
         ::-webkit-scrollbar-thumb:hover{background:#A8B8CC}
         ::-webkit-scrollbar-track{background:transparent}
         @media (max-width: 860px){
-          .pnrm-brandpanel{display:none!important}
-          .pnrm-mobilelogo{display:block!important}
           .statstrip{grid-template-columns:repeat(2,1fr)!important}
           .statstrip > div{border-left:none!important;border-top:1px solid #D1DCE8}
           .statstrip > div:first-child,.statstrip > div:nth-child(2){border-top:none}
