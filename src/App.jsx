@@ -1927,6 +1927,11 @@ export default function App() {
   // unser Listener im useEffect überhaupt angemeldet ist - das Event kam dadurch
   // nie an und man landete stattdessen auf der normalen Login-Seite.
   const [recoveryMode, setRecoveryMode] = useState(() => window.location.hash.includes("type=recovery"));
+  // verifyOtp(type:"recovery") in der "Code eingeben"-Ansicht feuert INTERN
+  // dasselbe PASSWORD_RECOVERY-Event wie der Link-Weg. Ohne diese Sperre
+  // würde der globale Listener unten mitten im eigenen Code-Formular
+  // plötzlich auf NewPasswordView umschalten - Passwort dann doppelt gefragt.
+  const skipRecoveryEventRef = useRef(false);
 
   useEffect(() => {
     // Supabase-Recovery-Link im PKCE-Format (?code=...) - wird von supabase-js
@@ -1943,7 +1948,7 @@ export default function App() {
       if (session?.user) checkAdmin(session.user.email);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (_event === "PASSWORD_RECOVERY") { setRecoveryMode(true); return; }
+      if (_event === "PASSWORD_RECOVERY") { if (!skipRecoveryEventRef.current) setRecoveryMode(true); return; }
       setUser(session?.user ?? null);
       if (session?.user) checkAdmin(session.user.email);
       else { setIsAdmin(false); setIsSuperAdmin(false); }
@@ -2085,6 +2090,7 @@ export default function App() {
                     if (codePw1.length < 12) { setCodeError("Das Passwort muss mindestens 12 Zeichen lang sein."); return; }
                     if (codePw1 !== codePw2) { setCodeError("Die Passwörter stimmen nicht überein."); return; }
                     setCodeLoading(true);
+                    skipRecoveryEventRef.current = true;
                     const { error: verifyErr } = await supabase.auth.verifyOtp({ email: codeEmail, token: codeValue.trim(), type: "recovery" });
                     if (verifyErr) { setCodeError(verifyErr.message); setCodeLoading(false); return; }
                     const { error: updateErr } = await supabase.auth.updateUser({ password: codePw1 });
