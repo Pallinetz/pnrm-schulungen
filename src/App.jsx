@@ -2140,7 +2140,7 @@ export default function App() {
             <span style={{ color:C.white, fontSize:13.5, fontWeight:600, letterSpacing:"0.02em", opacity:0.92 }}>Schulungen &amp; Wissen</span>
           </div>
           <div className="flex items-center gap-2">
-            {user && <button className="hdrbtn" onClick={()=>exportExcel(schulungen,ma)} style={{ appearance:"none", background:"transparent", color:C.white, border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"6px 12px", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>Excel-Export</button>}
+            {isAdmin && <button className="hdrbtn" onClick={()=>exportExcel(schulungen,ma)} style={{ appearance:"none", background:"transparent", color:C.white, border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"6px 12px", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>Excel-Export</button>}
             {isAdmin&&<button className="hdrbtn-solid" onClick={()=>{setActive(null);setModal("neu");setTab("schulungen");}} style={{ appearance:"none", background:C.white, color:C.navy, border:0, borderRadius:8, padding:"6px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 4px rgba(0,0,0,.15)" }}>+ Neue Schulung</button>}
             {user && <HeaderProfileMenu user={user} isAdmin={isAdmin} onSignOut={()=>supabase.auth.signOut()} />}
           </div>
@@ -2149,13 +2149,13 @@ export default function App() {
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+        <div className={`grid grid-cols-2 ${isAdmin ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-3 mb-6`}>
           {[
             ["Schulungen", schulungen.length, GraduationCap, "bg-blue-50", "text-blue-600"],
             ["Freigegeben", schulungen.filter(s=>s.status==="Freigegeben").length, CheckCircle2, "bg-emerald-50", "text-emerald-600"],
             ["Versendet", schulungen.filter(s=>effectiveEmpfaenger(s,ma).length>0).length, Send, "bg-indigo-50", "text-indigo-600"],
             ["Nachweise", schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0), FileCheck2, "bg-teal-50", "text-teal-600"],
-            ["Mitarbeiter", ma.length, Users, "bg-amber-50", "text-amber-600"],
+            ...(isAdmin ? [["Mitarbeiter", ma.length, Users, "bg-amber-50", "text-amber-600"]] : []),
           ].map(([label, value, Icon, iconBg, iconColor]) => (
             <div key={label} className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-3">
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}><Icon size={17} /></div>
