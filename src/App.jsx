@@ -1809,6 +1809,54 @@ function SetPasswordView({ token, onDone }) {
   );
 }
 
+function NewPasswordView({ onDone }) {
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitErr, setSubmitErr] = useState(null);
+  const [done, setDone] = useState(false);
+
+  const submit = async e => {
+    e.preventDefault();
+    setSubmitErr(null);
+    if (pw1.length < 12) { setSubmitErr("Das Passwort muss mindestens 12 Zeichen lang sein."); return; }
+    if (pw1 !== pw2) { setSubmitErr("Die Passwörter stimmen nicht überein."); return; }
+    setSubmitting(true);
+    const { error } = await supabase.auth.updateUser({ password: pw1 });
+    if (error) { setSubmitErr(error.message); setSubmitting(false); return; }
+    await supabase.auth.signOut();
+    setDone(true);
+    setTimeout(() => onDone(), 900);
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, fontFamily:FONT, padding:24 }}>
+      <div style={{ width:"100%", maxWidth:400, background:C.white, borderRadius:16, padding:"36px 34px", boxShadow:"0 1px 2px rgba(22,35,58,.05), 0 12px 40px rgba(46,75,110,.1)", border:`1px solid ${C.border}` }}>
+        <div style={{ textAlign:"center", marginBottom:22 }}>
+          <img src="/logo.png" alt="PNRM" style={{ height:44, marginBottom:14 }} />
+        </div>
+        {done ? (
+          <div>
+            <h2 style={{ margin:"0 0 8px", fontSize:19, fontWeight:700 }}>Fertig! ✓</h2>
+            <p style={{ margin:0, fontSize:14, color:C.muted }}>Du kannst dich jetzt mit dem neuen Passwort anmelden…</p>
+          </div>
+        ) : (
+          <form onSubmit={submit}>
+            <h2 style={{ margin:"0 0 4px", fontSize:19, fontWeight:700, letterSpacing:"-0.01em" }}>Neues Passwort setzen</h2>
+            <p style={{ margin:"0 0 22px", fontSize:14, color:C.muted }}>Wähle ein neues Passwort für dein Konto.</p>
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              <PwField label="Neues Passwort" value={pw1} onChange={e=>setPw1(e.target.value)} placeholder="Mindestens 12 Zeichen" autoFocus autoComplete="new-password" />
+              <PwField label="Passwort bestätigen" value={pw2} onChange={e=>setPw2(e.target.value)} placeholder="Wiederholen" autoComplete="new-password" />
+              {submitErr && <p style={{ margin:0, fontSize:13, color:C.bad.text }}>{submitErr}</p>}
+              <button type="submit" disabled={submitting} style={{ ...css.btn, padding:"12px 16px", fontSize:14.5, width:"100%", marginTop:4, opacity:submitting?0.65:1 }}>{submitting?"Wird gespeichert…":"Passwort setzen"}</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 function HeaderProfileMenu({ user, isAdmin, onSignOut }) {
   const [open, setOpen] = useState(false);
@@ -1866,13 +1914,20 @@ export default function App() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetResult, setResetResult] = useState(null);
   const [inviteToken] = useState(() => new URLSearchParams(window.location.search).get("token"));
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   useEffect(() => {
+    // Supabase-Recovery-Link im PKCE-Format (?code=...) - wird von supabase-js
+    // anders als der Hash-basierte Legacy-Flow NICHT automatisch eingelöst.
+    const code = new URLSearchParams(window.location.search).get("code");
+    if (code) supabase.auth.exchangeCodeForSession(window.location.href).catch(console.error);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) checkAdmin(session.user.email);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === "PASSWORD_RECOVERY") { setRecoveryMode(true); return; }
       setUser(session?.user ?? null);
       if (session?.user) checkAdmin(session.user.email);
       else { setIsAdmin(false); setIsSuperAdmin(false); }
@@ -1949,6 +2004,10 @@ export default function App() {
 
   if (inviteToken && !user) return (
     <SetPasswordView token={inviteToken} onDone={() => { window.history.replaceState({}, "", window.location.pathname); window.location.reload(); }} />
+  );
+
+  if (recoveryMode) return (
+    <NewPasswordView onDone={() => { window.history.replaceState({}, "", window.location.pathname); window.location.reload(); }} />
   );
 
   const twInputLg = `${twInput} py-3 px-4`;
