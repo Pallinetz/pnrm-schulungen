@@ -2156,7 +2156,7 @@ export default function App() {
 
         {/* Tabs */}
         <div style={{ display:"flex", gap:4, borderBottom:`1px solid ${C.border}`, marginBottom:20 }}>
-          {[["schulungen","Schulungen"],["wissen","Wissen"],...(user?[["mitarbeiter","Mitarbeiter"]]:[]),...(isSuperAdmin?[["fortschritt","Fortschritt"]]:[])]  .map(([id,label])=>(
+          {[["schulungen","Schulungen"],["wissen","Wissen"],...(isAdmin?[["mitarbeiter","Mitarbeiter"]]:[]),...(isSuperAdmin?[["fortschritt","Fortschritt"]]:[])]  .map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} className="ptab" style={{ background: tab===id ? C.blueDim : "none", color:tab===id?C.navy:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:500, border:"none", borderBottom: tab===id ? `2px solid ${C.navy}` : "2px solid transparent", marginBottom:-1, borderRadius:"8px 8px 0 0", fontFamily:FONT, transition:"color .15s, background .15s" }}>{label}</button>
           ))}
         </div>
@@ -2202,7 +2202,7 @@ export default function App() {
           })}
         </>}
         {tab==="wissen"&&<WissenView isAdmin={isAdmin} showToast={showToast} />}
-        {tab==="mitarbeiter"&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} user={user} onRefresh={loadMitarbeiter} />}
+        {tab==="mitarbeiter"&&isAdmin&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} user={user} onRefresh={loadMitarbeiter} />}
         {tab==="fortschritt"&&<FortschrittView schulungen={schulungen} ma={ma} />}
 
         <footer style={{ marginTop:48, paddingTop:20, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, paddingBottom:28 }}>
