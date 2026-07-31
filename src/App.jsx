@@ -4,7 +4,22 @@ import * as XLSX from "xlsx";
 import { VideoUploader } from "./components/VideoUploader";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { getSignedVideoUrl, deleteVideo } from "./lib/videoStorage";
+import { uploadDokument, deleteDokument } from "./lib/dokumentStorage";
 import { supabase } from "./lib/supabase";
+
+// functions.invoke() only puts the generic "Edge Function returned a non-2xx
+// status code" in res.error.message — the actual reason from the function's
+// JSON body sits in res.error.context (the raw Response) and must be parsed separately.
+async function invokeFn(action, body, opts) {
+  const res = await supabase.functions.invoke("send-invitation-email", { body: { action, ...body }, ...opts });
+  if (res.error) {
+    let msg = res.error.message;
+    try { const detail = await res.error.context?.json(); if (detail?.error) msg = detail.error; } catch {}
+    throw new Error(msg);
+  }
+  if (res.data?.error) throw new Error(res.data.error);
+  return res.data;
+}
 
 // ─── Farben & Design — PNRM Corporate ─────────────────────────────────────────
 const C = {
@@ -771,13 +786,9 @@ function BulkInviteModal({ onClose, showToast, onInviteSent }) {
       const name = `${row.vorname} ${row.nachname}`.trim() || row.email;
       const profil = matchProfil(row.abteilung);
       try {
-        const res = await supabase.functions.invoke("send-invitation-email", {
-          body: { action: "create_link_schulungen", email: row.email, name, rolle, profil },
-          headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-        if (res.error) throw new Error(res.error.message);
-        if (res.data?.error) throw new Error(res.data.error);
-        out.push({ name, email: row.email, url: res.data.url, ok: true });
+        const data = await invokeFn("create_link_schulungen", { email: row.email, name, rolle, profil },
+          { headers: { Authorization: `Bearer ${session.access_token}` } });
+        out.push({ name, email: row.email, url: data.url, ok: true });
         if (onInviteSent) onInviteSent({ email: row.email, name, rolle, profil, id: `bulk_${Date.now()}_${row.email}`, bestaetigt: false });
       } catch (err) {
         out.push({ name, email: row.email, error: err.message, ok: false });
@@ -880,13 +891,9 @@ function InviteModal({ onClose, showToast, onInviteSent }) {
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("send-invitation-email", {
-        body: { action:"create_link_schulungen", email: form.email, name: form.name, rolle: form.rolle, profil: form.profil },
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (res.error) throw new Error(res.error.message);
-      if (res.data?.error) throw new Error(res.data.error);
-      const url = res.data.url;
+      const data = await invokeFn("create_link_schulungen", { email: form.email, name: form.name, rolle: form.rolle, profil: form.profil },
+        { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const url = data.url;
       setInviteUrl(url);
       setResult(`Link für ${form.email} erstellt.`);
       if (onInviteSent) onInviteSent({ email: form.email, name: form.name, rolle: form.rolle, profil: form.profil, id: `sent_${Date.now()}`, bestaetigt: false });
@@ -1021,13 +1028,9 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
     const out = [];
     for (const m of targets) {
       try {
-        const res = await supabase.functions.invoke("send-invitation-email", {
-          body: { action: "create_link_schulungen", email: m.email, name: m.name, rolle: m.rolle },
-          headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-        if (res.error) throw new Error(res.error.message);
-        if (res.data?.error) throw new Error(res.data.error);
-        out.push({ name: m.name, email: m.email, url: res.data.url, ok: true });
+        const data = await invokeFn("create_link_schulungen", { email: m.email, name: m.name, rolle: m.rolle },
+          { headers: { Authorization: `Bearer ${session.access_token}` } });
+        out.push({ name: m.name, email: m.email, url: data.url, ok: true });
       } catch (err) {
         out.push({ name: m.name, email: m.email, error: err.message, ok: false });
       }
@@ -1059,13 +1062,9 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
     setResending(email);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("send-invitation-email", {
-        body: { action: "create_link_schulungen", email, name, rolle },
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (res.error) throw new Error(res.error.message);
-      if (res.data?.error) throw new Error(res.data.error);
-      const url = res.data.url;
+      const data = await invokeFn("create_link_schulungen", { email, name, rolle },
+        { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const url = data.url;
       showToast(`Link für ${email} erstellt – Outlook öffnet sich.`);
       window.location.href = buildInviteMail(name, email, url, "schulungen");
     } catch (e) {
@@ -1078,14 +1077,10 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
     setResending(email);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("send-invitation-email", {
-        body: { action: "admin_reset_password_link", email },
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (res.error) throw new Error(res.error.message);
-      if (res.data?.error) throw new Error(res.data.error);
+      const data = await invokeFn("admin_reset_password_link", { email },
+        { headers: { Authorization: `Bearer ${session.access_token}` } });
       showToast(`Reset-Code für ${email} erstellt – Outlook öffnet sich.`);
-      window.location.href = buildResetMail(name, email, res.data.code);
+      window.location.href = buildResetMail(name, email, data.code);
     } catch (e) {
       showToast(`Fehler: ${e.message}`);
     }
@@ -1484,6 +1479,23 @@ function NachweisModal({ sc, ma, onClose }) {
 
 // ─── Wissen ───────────────────────────────────────────────────────────────────
 const stripMd = txt => (txt||"").replace(/#{1,6} /g,"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/_/g,"");
+const FILE_ICONS = { pdf:"📄", word:"📝", excel:"📊", powerpoint:"📑", image:"🖼️", datei:"📎" };
+const FILE_COLORS = { pdf:"#c0392b", word:"#2459b8", excel:"#27ae60", powerpoint:"#e67e22", image:"#8e44ad", datei:"#666" };
+
+function getFileType(filename) {
+  const ext = (filename||"").split(".").pop().toLowerCase();
+  if (ext==="pdf") return "pdf";
+  if (["doc","docx"].includes(ext)) return "word";
+  if (["xls","xlsx"].includes(ext)) return "excel";
+  if (["ppt","pptx"].includes(ext)) return "powerpoint";
+  if (["jpg","jpeg","png","gif","webp"].includes(ext)) return "image";
+  return "datei";
+}
+function formatSize(bytes) {
+  if (!bytes) return "";
+  if (bytes < 1024*1024) return `${(bytes/1024).toFixed(0)} KB`;
+  return `${(bytes/1024/1024).toFixed(1)} MB`;
+}
 
 function WissenView({ isAdmin, showToast }) {
   const [artikel, setArtikel] = useState([]);
@@ -1492,6 +1504,10 @@ function WissenView({ isAdmin, showToast }) {
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ titel:"", kategorie_id:"", inhalt:"" });
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [uploadingDetail, setUploadingDetail] = useState(false);
+  const formFileRef = useRef();
+  const detailFileRef = useRef();
 
   useEffect(() => {
     Promise.all([
@@ -1521,17 +1537,30 @@ function WissenView({ isAdmin, showToast }) {
       freigegeben_von:form.freigegebenVon||null, gueltig_ab:form.gueltigAb||null,
       geltungsbereich:form.geltungsbereich||null, bezugsdokumente:form.bezugsdokumente||null,
     };
+    let artikelId;
     if (editing==="neu") {
       const { data, error } = await supabase.from("wissen_artikel").insert(payload).select("*, wissen_dateien(*)").single();
       if (error) { showToast(`Fehler: ${error.message}`); return; }
+      artikelId = data.id;
       setArtikel(a=>[...a,{ ...data, dateien:data.wissen_dateien ?? [] }]);
       showToast("Artikel erstellt.");
     } else {
       const { data, error } = await supabase.from("wissen_artikel").update(payload).eq("id",editing).select("*, wissen_dateien(*)").single();
       if (error) { showToast(`Fehler: ${error.message}`); return; }
+      artikelId = editing;
       setArtikel(a=>a.map(x=>x.id===editing?{ ...data, dateien:data.wissen_dateien ?? [] }:x));
       showToast("Gespeichert.");
     }
+    for (const file of pendingFiles) {
+      try {
+        const result = await uploadDokument(file);
+        const { data:d, error:e } = await supabase.from("wissen_dateien")
+          .insert({ artikel_id:artikelId, name:file.name, typ:getFileType(file.name), url:result.publicUrl, groesse:file.size })
+          .select().single();
+        if (!e && d) setArtikel(a=>a.map(x=>x.id===artikelId?{ ...x, dateien:[...x.dateien,d] }:x));
+      } catch (fe) { showToast(`"${file.name}" Upload fehlgeschlagen.`); }
+    }
+    setPendingFiles([]);
     setEditing(null);
   };
 
@@ -1554,6 +1583,30 @@ function WissenView({ isAdmin, showToast }) {
     if (error) { showToast(`Fehler: ${error.message}`); return; }
     setArtikel(a=>a.map(x=>x.id===artikelId ? { ...x, dateien:x.dateien.filter(d=>d.id!==dateiId) } : x));
     deleteVideo(url).catch(console.error);
+  };
+
+  const addFileInDetail = async (file) => {
+    if (!selected) return;
+    setUploadingDetail(true);
+    try {
+      const result = await uploadDokument(file);
+      const { data, error } = await supabase.from("wissen_dateien")
+        .insert({ artikel_id:selected, name:file.name, typ:getFileType(file.name), url:result.publicUrl, groesse:file.size })
+        .select().single();
+      if (error) throw error;
+      setArtikel(a=>a.map(x=>x.id===selected ? { ...x, dateien:[...x.dateien,data] } : x));
+      showToast(`"${file.name}" angehängt.`);
+    } catch (err) { showToast(`Upload fehlgeschlagen: ${err.message}`); }
+    finally { setUploadingDetail(false); }
+  };
+
+  const removeDatei = async (artikelId, datei) => {
+    const { error } = await supabase.from("wissen_dateien").delete().eq("id",datei.id);
+    if (error) { showToast(`Fehler: ${error.message}`); return; }
+    setArtikel(a=>a.map(x=>x.id===artikelId ? { ...x, dateien:x.dateien.filter(d=>d.id!==datei.id) } : x));
+    const path = (datei.url||"").split("/wissen-dokumente/")[1];
+    if (path) deleteDokument(path).catch(console.error);
+    showToast("Datei entfernt.");
   };
 
   if (wissenLoading) return <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Wissensdatenbank wird geladen…</p>;
@@ -1613,10 +1666,33 @@ function WissenView({ isAdmin, showToast }) {
           ))}
 
           <label style={css.lbl}>Inhalt</label>
-          <textarea value={form.inhalt} onChange={e=>setF("inhalt",e.target.value)} style={{ ...css.inp, minHeight:100, resize:"vertical", marginBottom:12 }} />
+          <textarea value={form.inhalt} onChange={e=>setF("inhalt",e.target.value)} style={{ ...css.inp, minHeight:100, resize:"vertical", marginBottom:14 }} />
+
+          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, marginBottom:14 }}>
+            <label style={{ ...css.lbl, display:"flex", justifyContent:"space-between" }}>
+              <span>📎 Anhänge</span>
+              <span style={{ fontWeight:400, color:C.muted, fontSize:11 }}>PDF, Word, Excel, PowerPoint, Bilder</span>
+            </label>
+            <input ref={formFileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif" style={{ display:"none" }}
+              onChange={e=>{ setPendingFiles(p=>[...p,...Array.from(e.target.files)]); e.target.value=""; }} />
+            <button onClick={()=>formFileRef.current?.click()} style={{ ...css.btnSec, fontSize:13, marginBottom:pendingFiles.length?10:0 }}>+ Datei hinzufügen</button>
+            {pendingFiles.length>0 && (
+              <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
+                {pendingFiles.map((f,i)=>(
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:8, background:"#f0f4f8", borderRadius:7, padding:"7px 11px" }}>
+                    <span style={{ fontSize:16 }}>{FILE_ICONS[getFileType(f.name)]||"📎"}</span>
+                    <span style={{ flex:1, fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
+                    <span style={{ fontSize:11, color:C.muted, whiteSpace:"nowrap" }}>{formatSize(f.size)}</span>
+                    <button onClick={()=>setPendingFiles(p=>p.filter((_,j)=>j!==i))} style={{ ...css.btnDanger, padding:"2px 8px", fontSize:12 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-            <button onClick={()=>setEditing(null)} style={css.btnSec}>Abbrechen</button>
-            <button onClick={saveArtikel} style={css.btn}>Speichern</button>
+            <button onClick={()=>{ setEditing(null); setPendingFiles([]); }} style={css.btnSec}>Abbrechen</button>
+            <button onClick={saveArtikel} style={css.btn}>{`Speichern${pendingFiles.length>0?` + ${pendingFiles.length} Datei(en)`:""}`}</button>
           </div>
         </div>
       )}
@@ -1636,10 +1712,40 @@ function WissenView({ isAdmin, showToast }) {
               )}
             </div>
           ))}
+
+          {art.dateien.filter(d=>d.typ!=="video").length>0 && (
+            <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, marginBottom:16 }}>
+              <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:.5 }}>Anhänge</p>
+              <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                {art.dateien.filter(d=>d.typ!=="video").map(d=>{
+                  const typ = d.typ || getFileType(d.name||"");
+                  const col = FILE_COLORS[typ]||"#666";
+                  return (
+                    <div key={d.id} style={{ display:"flex", alignItems:"center", gap:10, background:"#f7f9fc", border:`1px solid ${C.border}`, borderLeft:`3px solid ${col}`, borderRadius:8, padding:"9px 12px" }}>
+                      <span style={{ fontSize:20 }}>{FILE_ICONS[typ]||"📎"}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
+                        {d.groesse && <div style={{ fontSize:11, color:C.muted }}>{formatSize(d.groesse)}</div>}
+                      </div>
+                      <a href={d.url} target="_blank" rel="noreferrer" style={{ ...css.btnSec, fontSize:12, padding:"5px 11px", textDecoration:"none", whiteSpace:"nowrap", display:"inline-block" }}>⬇ Öffnen</a>
+                      {isAdmin && <button onClick={()=>removeDatei(art.id,d)} style={{ ...css.btnDanger, padding:"5px 9px", fontSize:12 }}>✕</button>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {isAdmin && (
             <div style={{ marginTop:16, borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
               <p style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:C.muted }}>Video anhängen</p>
               <VideoUploader label="Video hochladen (MP4)" onUploaded={({path,name})=>addVideo(art.id,{path,name})} />
+              <p style={{ margin:"14px 0 8px", fontSize:13, fontWeight:700, color:C.muted }}>Datei anhängen</p>
+              <input ref={detailFileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" style={{ display:"none" }}
+                onChange={async e=>{ for (const f of Array.from(e.target.files)) await addFileInDetail(f); e.target.value=""; }} />
+              <button onClick={()=>detailFileRef.current?.click()} disabled={uploadingDetail} style={{ ...css.btnSec, fontSize:13, opacity:uploadingDetail?0.6:1 }}>
+                {uploadingDetail ? "⏳ Wird hochgeladen…" : "📎 Datei anhängen"}
+              </button>
             </div>
           )}
         </div>
@@ -1652,6 +1758,7 @@ function WissenView({ isAdmin, showToast }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {artikel.map(a=>{
               const videos=a.dateien.filter(d=>d.typ==="video").length;
+              const docs=a.dateien.filter(d=>d.typ!=="video").length;
               const kat = kategorieMap[a.kategorie_id];
               const preview = stripMd(a.inhalt);
               const lesedauer = Math.max(1, Math.round(preview.split(/\s+/).filter(Boolean).length / 200));
@@ -1674,6 +1781,7 @@ function WissenView({ isAdmin, showToast }) {
                   <div className="flex items-center gap-3 text-xs text-slate-400">
                     <span>⏱ {lesedauer} Min. Lesezeit</span>
                     {videos>0 && <span className="text-blue-600">▶ {videos} Video{videos!==1?"s":""}</span>}
+                    {docs>0 && <span>📎 {docs} Anhang{docs!==1?"e":""}</span>}
                   </div>
                 </div>
               );
@@ -1738,13 +1846,8 @@ function SetPasswordView({ token, onDone }) {
   const [submitErr, setSubmitErr] = useState(null);
 
   useEffect(() => {
-    supabase.functions.invoke("send-invitation-email", { body: { action: "validate_invite", token } })
-      .then(res => {
-        if (res.error) throw new Error(res.error.message);
-        if (res.data?.error) throw new Error(res.data.error);
-        setInvite(res.data);
-        setStatus("ready");
-      })
+    invokeFn("validate_invite", { token })
+      .then(data => { setInvite(data); setStatus("ready"); })
       .catch(e => { setErrMsg(e.message); setStatus("error"); });
   }, [token]);
 
@@ -1755,9 +1858,7 @@ function SetPasswordView({ token, onDone }) {
     if (pw1 !== pw2) { setSubmitErr("Die Passwörter stimmen nicht überein."); return; }
     setSubmitting(true);
     try {
-      const res = await supabase.functions.invoke("send-invitation-email", { body: { action: "redeem_invite", token, password: pw1 } });
-      if (res.error) throw new Error(res.error.message);
-      if (res.data?.error) throw new Error(res.data.error);
+      await invokeFn("redeem_invite", { token, password: pw1 });
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email: invite.email, password: pw1 });
       if (signInErr) throw new Error(signInErr.message);
       setStatus("success");
