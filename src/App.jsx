@@ -1028,7 +1028,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
     const out = [];
     for (const m of targets) {
       try {
-        const data = await invokeFn("create_link_schulungen", { email: m.email, name: m.name, rolle: m.rolle },
+        const data = await invokeFn("create_link_schulungen", { email: m.email, name: m.name, rolle: m.rolle, profil: m.profil },
           { headers: { Authorization: `Bearer ${session.access_token}` } });
         out.push({ name: m.name, email: m.email, url: data.url, ok: true });
       } catch (err) {
@@ -1058,11 +1058,11 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
     if (ok) { showToast("Gespeichert."); cancelEdit(); }
   };
 
-  const resendInvite = async (email, name, rolle) => {
+  const resendInvite = async (email, name, rolle, profil) => {
     setResending(email);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const data = await invokeFn("create_link_schulungen", { email, name, rolle },
+      const data = await invokeFn("create_link_schulungen", { email, name, rolle, profil },
         { headers: { Authorization: `Bearer ${session.access_token}` } });
       const url = data.url;
       showToast(`Link für ${email} erstellt – Outlook öffnet sich.`);
@@ -1253,7 +1253,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                     <td className="px-3 py-3 text-right">
                       <ActionsMenu items={[
                         isAdmin && { label: "Bearbeiten", onClick: () => startEdit(m) },
-                        { label: resending === m.email ? "Wird gesendet…" : "Erneut senden", onClick: () => resendInvite(m.email, m.name, m.rolle), disabled: resending === m.email },
+                        { label: resending === m.email ? "Wird gesendet…" : "Erneut senden", onClick: () => resendInvite(m.email, m.name, m.rolle, m.profil), disabled: resending === m.email },
                         isAdmin && { label: "Passwort-Link senden", onClick: () => sendResetLink(m.email, m.name), disabled: resending === m.email },
                         isAdmin && { label: "Löschen", onClick: () => deleteUser(m.id, m.email), danger: true },
                       ]} />
