@@ -184,6 +184,29 @@ function AIBtn({ onClick, loading, label }) {
   return <button onClick={onClick} disabled={loading} style={{ ...css.btnSec, fontSize:13, padding:"7px 14px", opacity:loading?.65:1, display:"flex", alignItems:"center", gap:6 }}><span>{loading?"⏳":"✦"}</span>{loading?"KI generiert…":label}</button>;
 }
 
+function Skel({ w, h, r=6, style }) {
+  return <div style={{ width:w, height:h, borderRadius:r, background:"linear-gradient(90deg, #E7EDF7 25%, #EEF2F8 37%, #E7EDF7 63%)", backgroundSize:"400% 100%", animation:"skelShimmer 1.4s ease infinite", ...style }} />;
+}
+function SchulungSkeletonCard() {
+  return (
+    <div style={{ ...css.section, padding:20 }}>
+      <div style={{ display:"flex", gap:6, marginBottom:10 }}><Skel w={72} h={20} /><Skel w={92} h={20} /></div>
+      <Skel w="55%" h={19} r={5} style={{ marginBottom:9 }} />
+      <Skel w="32%" h={13} />
+    </div>
+  );
+}
+function WissenSkeletonCard() {
+  return (
+    <div style={{ border:`1px solid ${C.border}`, borderRadius:12, padding:16 }}>
+      <Skel w="40%" h={12} r={4} style={{ marginBottom:12 }} />
+      <Skel w="80%" h={17} r={5} style={{ marginBottom:8 }} />
+      <Skel w="100%" h={12} r={4} style={{ marginBottom:6 }} />
+      <Skel w="70%" h={12} r={4} />
+    </div>
+  );
+}
+
 function EmptyState({ icon:Icon, text }) {
   return (
     <div style={{ textAlign:"center", padding:"48px 20px", color:C.muted }}>
@@ -1695,7 +1718,14 @@ function WissenView({ isAdmin, showToast }) {
     showToast("Datei entfernt.");
   };
 
-  if (wissenLoading) return <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Wissensdatenbank wird geladen…</p>;
+  if (wissenLoading) return (
+    <div style={{ fontFamily:FONT }}>
+      <h2 style={{ margin:"0 0 18px", fontSize:20 }}>📚 Wissensdatenbank</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({length:6}).map((_,i)=><WissenSkeletonCard key={i} />)}
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ fontFamily:FONT }}>
@@ -2390,7 +2420,7 @@ export default function App() {
             ))}
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Titel oder Dok.-Nr. suchen…" style={{ ...css.inp, flex:1, minWidth:160, padding:"7px 12px", fontSize:13 }} />
           </div>
-          {schulungenLoading&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Schulungen werden geladen…</p>}
+          {schulungenLoading&&Array.from({length:4}).map((_,i)=><SchulungSkeletonCard key={i} />)}
           {!schulungenLoading&&filtered.length===0&&<EmptyState icon={search||filter!=="alle"?SearchX:GraduationCap} text={search||filter!=="alle"?"Keine Schulungen gefunden.":"Noch keine Schulungen angelegt."} />}
           {filtered.map(sc=>{
             const nwCount=Object.keys(sc.nachweise||{}).length; const sent=effectiveEmpfaenger(sc,ma).length;
@@ -2449,6 +2479,7 @@ export default function App() {
       {toast&&<div style={{ position:"fixed",bottom:22,right:22,display:"flex",alignItems:"flex-start",gap:10,background:C.white,borderLeft:`4px solid ${toast.type==="warn"?"#E8A317":"#2E9E5B"}`,border:`1px solid ${C.border}`,color:C.text,padding:"13px 18px",borderRadius:12,fontSize:14,fontWeight:500,boxShadow:"0 4px 12px rgba(22,35,58,.08), 0 16px 48px rgba(22,35,58,.16)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}><span style={{ fontSize:16, lineHeight:1.3 }}>{toast.type==="warn"?"⚠️":"✓"}</span><span style={{ lineHeight:1.45 }}>{toast.msg}</span></div>}
       <style>{`
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes skelShimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
         *{box-sizing:border-box}
         body{font-family:'Inter',-apple-system,sans-serif;background:#F0F4F8;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
         ::selection{background:rgba(58,124,165,.22)}
