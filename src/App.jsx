@@ -160,6 +160,15 @@ function proofCode(kuerzel) {
   return (kuerzel||"XX").toUpperCase().slice(0,3) + "-" + d + "-" + Math.random().toString(36).slice(2,6).toUpperCase();
 }
 
+// "over" = Frist verstrichen, "soon" = Frist in <=7 Tagen, sonst null (kein Hinweis nötig)
+function fristStatus(frist) {
+  if (!frist) return null;
+  const today = new Date().toISOString().slice(0,10);
+  if (frist < today) return "over";
+  const days = Math.ceil((new Date(frist) - new Date(today)) / 86400000);
+  return days <= 7 ? "soon" : null;
+}
+
 function Modal({ onClose, children, wide }) {
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,backdropFilter:"blur(3px)" }}>
@@ -457,7 +466,7 @@ function SchulungForm({ schulung, onSave, onClose, isAdmin }) {
   const [form, setForm] = useState(schulung || {
     titel:"", orgName:"Palliativ Netzwerk Rhein-Maas GmbH & Co. KG",
     dokNr:"", version:"1.0", status:"Entwurf",
-    gueltigAb:new Date().toISOString().slice(0,10), naechstePruefung:"",
+    gueltigAb:new Date().toISOString().slice(0,10), naechstePruefung:"", frist:"",
     erstelltDurch:"", freigegebenVon:"",
     geltungsbereich:"", bezugsdokumente:"",
     kategorie:"Pflege", pflicht:false, dauer:"ca. 20–30 Min.",
@@ -507,7 +516,7 @@ Format:
   const setAns = (fi,ai2,v) => setForm(f=>{ const q=[...f.fragen]; const a=[...q[fi].a]; a[ai2]=v; q[fi]={...q[fi],a}; return {...f,fragen:q}; });
   const setChk = (i,v) => setForm(f=>{ const c=[...f.checkliste]; c[i]=v; return {...f,checkliste:c}; });
 
-  const meta1 = [["titel","Titel (Schulungsthema)"],["dokNr","Dok.-Nr."],["version","Version"],["status","Status"],["gueltigAb","Gültig ab"],["naechstePruefung","Nächste Prüfung"],["erstelltDurch","Erstellt durch"],["freigegebenVon","Freigegeben durch"]];
+  const meta1 = [["titel","Titel (Schulungsthema)"],["dokNr","Dok.-Nr."],["version","Version"],["status","Status"],["gueltigAb","Gültig ab"],["naechstePruefung","Nächste Prüfung"],["frist","Frist (Abschluss durch Mitarbeitende bis)"],["erstelltDurch","Erstellt durch"],["freigegebenVon","Freigegeben durch"]];
   const meta2 = [["geltungsbereich","Geltungsbereich"],["bezugsdokumente","Bezugsdokumente / Normen"]];
 
   return (
@@ -987,6 +996,7 @@ function ActionsMenu({ items }) {
 
 function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, onRefresh }) {
   const [loading, setLoading] = useState(false);
+  const [maSearch, setMaSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [resending, setResending] = useState(null);
@@ -1087,6 +1097,12 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
     setResending(null);
   };
 
+  const visibleMa = ma.filter(m => {
+    const q = maSearch.trim().toLowerCase();
+    if (!q) return true;
+    return m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q) || m.rolle?.toLowerCase().includes(q);
+  });
+
   const deleteUser = async (id, email) => {
     const { error } = await supabase.from("mitarbeiter").delete().eq("id", id);
     if (error) { showToast(`Fehler: ${error.message}`); return; }
@@ -1103,6 +1119,10 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
           {isAdmin && <button onClick={() => setInviteOpen(true)} className={`${twBtnPrimary} text-sm px-3.5 py-2`}>+ Mitarbeiter einladen</button>}
         </div>
       </div>
+
+      {ma.length > 0 && (
+        <input value={maSearch} onChange={e=>setMaSearch(e.target.value)} placeholder="Name, E-Mail oder Rolle suchen…" className={`${twInput} mb-3 max-w-sm`} />
+      )}
 
       {isAdmin && ma.length > 0 && (
         <div className="flex items-center gap-3 mb-3">
@@ -1154,6 +1174,8 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
 
       {ma.length === 0 ? (
         <div className="text-center py-12 text-slate-500">Noch keine Mitarbeiter. Laden Sie welche ein!</div>
+      ) : visibleMa.length === 0 ? (
+        <div className="text-center py-12 text-slate-500">Keine Mitarbeiter gefunden.</div>
       ) : (
         <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-x-auto">
           <table className="w-full text-sm border-collapse min-w-[640px]">
@@ -1167,7 +1189,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
               </tr>
             </thead>
             <tbody>
-              {ma.map(m => {
+              {visibleMa.map(m => {
                 const bestaetigt = m.bestaetigt || false;
                 const editing = editId === m.id;
                 const colCount = isAdmin ? 5 : 4;
@@ -1446,6 +1468,43 @@ function SendModal({ sc, ma, onClose, onSend }) {
       <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:14 }}>
         <button onClick={onClose} style={css.btnSec}>Abbrechen</button>
         <button onClick={()=>onSend(sc.id,[...sel],msg)} disabled={!sel.size} style={{ ...css.btn, opacity:sel.size?1:.5 }}>📤 An {sel.size} Person{sel.size!==1?"en":""} senden</button>
+      </div>
+    </div>
+  );
+}
+
+function ReminderModal({ sc, ma, onClose }) {
+  const open = effectiveEmpfaenger(sc, ma).map(id=>ma.find(m=>m.id===id)).filter(Boolean).filter(m=>!sc.nachweise?.[m.id]);
+  const [msg, setMsg] = useState(`Kurze Erinnerung: Die Selbstlern-Unterweisung „${sc.titel}"${sc.pflicht?" (Pflichtschulung)":""} ist noch offen. Bitte zeitnah abschließen und den digitalen Nachweis absenden.\n\nViele Grüße`);
+  const [aiL, setAiL] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const genMsg = async () => {
+    setAiL(true);
+    const t = await callAI("Kurze, freundliche Teams-Erinnerung für SAPV-Team. Nur Text, kein Betreff.", `Erinnerung an die noch offene Selbstlern-Unterweisung "${sc.titel}"${sc.pflicht?", Pflichtschulung":""}. Freundlich, knapp, professionell, nicht mahnend.`).catch(()=>"");
+    if (t) setMsg(t);
+    setAiL(false);
+  };
+  const copy = () => { navigator.clipboard.writeText(msg); setCopied(true); setTimeout(()=>setCopied(false),2000); };
+  return (
+    <div style={{ fontFamily:FONT, color:C.text }}>
+      <h2 style={{ margin:"0 0 4px", fontSize:20 }}>🔔 Erinnerung senden</h2>
+      <p style={{ color:C.muted, margin:"0 0 18px", fontSize:14 }}>{sc.titel} · {sc.dokNr} · {open.length} noch offen</p>
+      {open.length===0 ? (
+        <p style={{ color:C.muted }}>Alle zugewiesenen Personen haben die Schulung bereits abgeschlossen.</p>
+      ) : (<>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+          {open.map(m=><span key={m.id} style={css.badge}>{m.name}</span>)}
+        </div>
+        <p style={{ margin:"0 0 8px", fontSize:12, color:C.muted }}>Text kopieren und wie üblich in Microsoft Teams an die offene Personen versenden.</p>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+          <label style={css.lbl}>Teams-Nachricht</label>
+          <AIBtn onClick={genMsg} loading={aiL} label="Formulieren" />
+        </div>
+        <textarea value={msg} onChange={e=>setMsg(e.target.value)} style={{ ...css.inp, minHeight:100, resize:"vertical" }} />
+      </>)}
+      <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:14 }}>
+        <button onClick={onClose} style={css.btnSec}>Schließen</button>
+        {open.length>0 && <button onClick={copy} style={css.btn}>{copied?"✓ Kopiert":"In Zwischenablage kopieren"}</button>}
       </div>
     </div>
   );
@@ -2006,6 +2065,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [myId, setMyId] = useState(null);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState(null);
@@ -2079,6 +2139,13 @@ export default function App() {
   };
   useEffect(() => { if (user) loadMitarbeiter(); }, [user, isAdmin]);
 
+  // Eigene mitarbeiter-Zeile ermitteln (jede:r darf laut RLS die eigene Zeile lesen,
+  // unabhängig von der Rolle) - für die persönliche "Meine offenen Schulungen"-Ansicht.
+  useEffect(() => {
+    if (!user) { setMyId(null); return; }
+    supabase.from("mitarbeiter").select("id").eq("email", user.email).single().then(({ data }) => setMyId(data?.id ?? null));
+  }, [user]);
+
   async function checkAdmin(email) {
     const { data, error } = await supabase.from("mitarbeiter").select("rolle").eq("email", email).single();
     if (error || !data) {
@@ -2130,6 +2197,7 @@ export default function App() {
     showToast(`✓ Nachweis gespeichert. Code: ${nw.code}`);
   };
   const filtered=schulungen.filter(s=>{const mF=filter==="alle"||s.status===filter||(filter==="Pflicht"&&s.pflicht)||(filter==="Versendet"&&effectiveEmpfaenger(s,ma).length>0);const mS=!search||s.titel.toLowerCase().includes(search.toLowerCase())||s.dokNr?.toLowerCase().includes(search.toLowerCase());return mF&&mS;});
+  const myOpen = myId ? schulungen.filter(s=>s.status==="Freigegeben"&&effectiveEmpfaenger(s,ma).includes(myId)&&!s.nachweise?.[myId]) : [];
 
   if (inviteToken && !user) return (
     <SetPasswordView token={inviteToken} onDone={() => { window.history.replaceState({}, "", window.location.pathname); window.location.reload(); }} />
@@ -2270,12 +2338,25 @@ export default function App() {
 
         {/* Tabs */}
         <div style={{ display:"flex", gap:4, borderBottom:`1px solid ${C.border}`, marginBottom:20 }}>
-          {[["schulungen","Schulungen"],["wissen","Wissen"],...(isAdmin?[["mitarbeiter","Mitarbeiter"]]:[]),...(isSuperAdmin?[["fortschritt","Fortschritt"]]:[])]  .map(([id,label])=>(
+          {[["schulungen","Schulungen"],["wissen","Wissen"],...(isAdmin?[["mitarbeiter","Mitarbeiter"]]:[]),...(isAdmin?[["fortschritt","Fortschritt"]]:[])]  .map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} className="ptab" style={{ background: tab===id ? C.blueDim : "none", color:tab===id?C.navy:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:500, border:"none", borderBottom: tab===id ? `2px solid ${C.navy}` : "2px solid transparent", marginBottom:-1, borderRadius:"8px 8px 0 0", fontFamily:FONT, transition:"color .15s, background .15s" }}>{label}</button>
           ))}
         </div>
 
         {tab==="schulungen"&&<>
+          {myOpen.length>0&&<div style={{ ...css.section, borderColor:C.warn.border, background:C.warn.bg, padding:16, marginTop:0 }}>
+            <h3 style={{ margin:"0 0 10px", fontSize:14, color:C.warn.text, textTransform:"uppercase", letterSpacing:".5px" }}>⏳ Meine offenen Schulungen ({myOpen.length})</h3>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {myOpen.map(sc=>{
+                const fs=fristStatus(sc.frist);
+                return <div key={sc.id} onClick={()=>{setActive(sc);setModal("player");}} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, background:C.white, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", cursor:"pointer" }}>
+                  <div><strong style={{ fontSize:14 }}>{sc.titel}</strong>{sc.pflicht&&<span style={{ marginLeft:8, fontSize:11, color:C.warn.text, fontWeight:700 }}>Pflicht</span>}</div>
+                  {fs==="over"&&<span style={{ ...css.badge, background:C.bad.bg, color:C.bad.text }}>Überfällig · Frist {sc.frist}</span>}
+                  {fs==="soon"&&<span style={{ ...css.badge, background:C.warn.bg, color:C.warn.text }}>Bald fällig · Frist {sc.frist}</span>}
+                </div>;
+              })}
+            </div>
+          </div>}
           <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
             {["alle","Freigegeben","Entwurf","Pflicht","Versendet"].map(f=>(
               <button key={f} onClick={()=>setFilter(f)} style={{ background:filter===f?C.navy:"transparent", color:filter===f?C.white:C.muted, border:`1px solid ${filter===f?C.navy:C.border}`, padding:"5px 13px", borderRadius:999, cursor:"pointer", fontSize:13, fontWeight:filter===f?600:400, fontFamily:FONT }}>{f}</button>
@@ -2286,6 +2367,7 @@ export default function App() {
           {!schulungenLoading&&filtered.length===0&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Keine Schulungen gefunden.</p>}
           {filtered.map(sc=>{
             const nwCount=Object.keys(sc.nachweise||{}).length; const sent=effectiveEmpfaenger(sc,ma).length;
+            const fs=fristStatus(sc.frist);
             const statusStyle = sc.status==="Freigegeben"
               ? { background:C.good.bg, color:C.good.text }
               : sc.status==="Entwurf"
@@ -2302,6 +2384,8 @@ export default function App() {
                     <span style={{ ...css.badge }}>{sc.kategorie}</span>
                     <span style={{ ...css.badge, ...statusStyle }}>{sc.status}</span>
                     {sc.pflicht&&<span style={{ ...css.badge, background:C.warn.bg, color:C.warn.text }}>Pflicht</span>}
+                    {fs==="over"&&<span style={{ ...css.badge, background:C.bad.bg, color:C.bad.text }}>Überfällig · Frist {sc.frist}</span>}
+                    {fs==="soon"&&<span style={{ ...css.badge, background:C.warn.bg, color:C.warn.text }}>Bald fällig · Frist {sc.frist}</span>}
                   </div>
                   <h3 style={{ margin:"0 0 4px", fontSize:17, fontWeight:600, color:C.text }}>{sc.titel}</h3>
                   <p style={{ margin:0, fontSize:13, color:C.muted }}>{sc.dokNr} · v{sc.version} · {sc.gueltigAb}{sent>0?` · ${sent} Empf. · ${nwCount}/${sent} Nachweise`:""}</p>
@@ -2309,6 +2393,7 @@ export default function App() {
                 <div style={{ display:"flex", gap:7 }} onClick={e=>e.stopPropagation()}>
                   {isAdmin&&<button onClick={()=>{setActive(sc);setModal("edit");}} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>Bearbeiten</button>}
                   {isAdmin&&sent>0&&<button onClick={()=>{setActive(sc);setModal("nw");}} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>Nachweise</button>}
+                  {isAdmin&&sent>0&&nwCount<sent&&<button onClick={()=>{setActive(sc);setModal("reminder");}} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>🔔 Erinnerung</button>}
                   {isAdmin&&sc.status==="Freigegeben"&&<button onClick={()=>{setActive(sc);setModal("send");}} style={{ ...css.btn, padding:"6px 12px", fontSize:13 }}>✉ Senden</button>}
                 </div>
               </div>
@@ -2332,6 +2417,7 @@ export default function App() {
       {modal==="player"&&active&&<Modal onClose={()=>setModal(null)} wide><SchulungsPlayer sc={active} onClose={()=>setModal(null)} onNachweis={(id,nw)=>saveNachweis(id,nw)} /></Modal>}
       {modal==="send"&&active&&<Modal onClose={()=>setModal(null)}><SendModal sc={active} ma={ma} onClose={()=>setModal(null)} onSend={sendSchul} /></Modal>}
       {modal==="nw"&&active&&<Modal onClose={()=>setModal(null)} wide><NachweisModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
+      {modal==="reminder"&&active&&<Modal onClose={()=>setModal(null)}><ReminderModal sc={active} ma={ma} onClose={()=>setModal(null)} /></Modal>}
 
       {toast&&<div style={{ position:"fixed",bottom:22,right:22,display:"flex",alignItems:"flex-start",gap:10,background:C.white,borderLeft:`4px solid ${toast.type==="warn"?"#E8A317":"#2E9E5B"}`,border:`1px solid ${C.border}`,color:C.text,padding:"13px 18px",borderRadius:12,fontSize:14,fontWeight:500,boxShadow:"0 4px 12px rgba(22,35,58,.08), 0 16px 48px rgba(22,35,58,.16)",zIndex:200,maxWidth:400,animation:"fadeIn .3s" }}><span style={{ fontSize:16, lineHeight:1.3 }}>{toast.type==="warn"?"⚠️":"✓"}</span><span style={{ lineHeight:1.45 }}>{toast.msg}</span></div>}
       <style>{`

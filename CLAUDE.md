@@ -94,6 +94,12 @@ vercel link      # Projekt mit Vercel-Deployment verknüpfen
 - **Produktion**: In Vercel Dashboard unter **Settings → Environment Variables** → `ANTHROPIC_KEY` anlegen
 - Der Key steht ausschließlich in der Serverless Function (`api/anthropic.js`) — nie im Browser-Bundle
 
+## Bekannte offene Punkte (Stand 04.08.2026)
+
+- **Rollenwechsel** (User/Admin/Super-Admin) funktioniert nicht — kaputt, noch nicht untersucht.
+- **Einladungs-Zähler**: Die Kennzahl oben soll nur tatsächlich verschickte Einladungen zählen, passend zur Mitarbeiterzahl — aktuell stimmt das nicht überein.
+- **Migration `20260804120000_schulungen_frist_spalte.sql`** ist noch nicht auf die Live-Datenbank angewendet — `npm run db:push` nach dem nächsten Login nicht vergessen (siehe Deployment-Checkliste unten), sonst bleibt das neue Frist-Feld ohne Wirkung.
+
 ## Deployment-Checkliste (Supabase)
 
 Änderungen an `supabase/functions/` oder `supabase/migrations/` werden durch `git push`
