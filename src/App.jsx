@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MoreHorizontal, GraduationCap, CheckCircle2, Send, FileCheck2, Users, ChevronDown, LogOut } from "lucide-react";
+import { MoreHorizontal, GraduationCap, CheckCircle2, Send, FileCheck2, Users, ChevronDown, LogOut, ClipboardList, Percent, SearchX, BookOpen } from "lucide-react";
 import * as XLSX from "xlsx";
 import { VideoUploader } from "./components/VideoUploader";
 import { VideoPlayer } from "./components/VideoPlayer";
@@ -182,6 +182,15 @@ function Modal({ onClose, children, wide }) {
 
 function AIBtn({ onClick, loading, label }) {
   return <button onClick={onClick} disabled={loading} style={{ ...css.btnSec, fontSize:13, padding:"7px 14px", opacity:loading?.65:1, display:"flex", alignItems:"center", gap:6 }}><span>{loading?"⏳":"✦"}</span>{loading?"KI generiert…":label}</button>;
+}
+
+function EmptyState({ icon:Icon, text }) {
+  return (
+    <div style={{ textAlign:"center", padding:"48px 20px", color:C.muted }}>
+      <Icon size={26} strokeWidth={1.5} style={{ opacity:.4, marginBottom:10 }} />
+      <p style={{ margin:0, fontSize:14 }}>{text}</p>
+    </div>
+  );
 }
 
 // ─── Wissen-Video-Block (lädt signed URL on mount) ────────────────────────────
@@ -1173,9 +1182,9 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
       )}
 
       {ma.length === 0 ? (
-        <div className="text-center py-12 text-slate-500">Noch keine Mitarbeiter. Laden Sie welche ein!</div>
+        <EmptyState icon={Users} text="Noch keine Mitarbeiter. Laden Sie welche ein!" />
       ) : visibleMa.length === 0 ? (
-        <div className="text-center py-12 text-slate-500">Keine Mitarbeiter gefunden.</div>
+        <EmptyState icon={SearchX} text="Keine Mitarbeiter gefunden." />
       ) : (
         <div className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-x-auto">
           <table className="w-full text-sm border-collapse min-w-[640px]">
@@ -1347,6 +1356,7 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
 // ─── Fortschritt (nur Super-Admin) ────────────────────────────────────────────
 function FortschrittView({ schulungen, ma }) {
   const [sortBy, setSortBy] = useState("pct");
+  const [search, setSearch] = useState("");
 
   const rows = ma.map(m => {
     const assigned = schulungen.filter(s => effectiveEmpfaenger(s, ma).includes(m.id));
@@ -1362,6 +1372,8 @@ function FortschrittView({ schulungen, ma }) {
     if (b.pct===null) return -1;
     return a.pct - b.pct;
   });
+  const q = search.trim().toLowerCase();
+  const visible = !q ? sorted : sorted.filter(({m}) => m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q) || m.profil?.some(p=>p.toLowerCase().includes(q)));
   const gesamtAssigned = rows.reduce((sum,r)=>sum+r.assigned.length,0);
   const gesamtDone = rows.reduce((sum,r)=>sum+r.done.length,0);
   const gesamtPct = gesamtAssigned ? Math.round((gesamtDone/gesamtAssigned)*100) : 0;
@@ -1371,34 +1383,42 @@ function FortschrittView({ schulungen, ma }) {
       <h2 style={{ margin: "0 0 4px", fontSize: 20 }}>📊 Fortschritt</h2>
       <p style={{ margin: "0 0 18px", fontSize: 13, color: C.muted }}>Wer hat welche zugewiesenen Schulungen abgeschlossen, wer hat noch offene.</p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, marginBottom: 20, overflow: "hidden" }}>
-        {[["Zuweisungen gesamt", gesamtAssigned],["Abgeschlossen", gesamtDone],["Quote gesamt", `${gesamtPct}%`]].map(([l,v],i)=>(
-          <div key={l} style={{ padding: "14px 18px", borderLeft: i>0?`1px solid ${C.border}`:"none" }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{v}</div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 2, textTransform: "uppercase", letterSpacing: ".5px" }}>{l}</div>
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        {[["Zuweisungen gesamt", gesamtAssigned, ClipboardList, "bg-blue-50", "text-blue-600"],["Abgeschlossen", gesamtDone, CheckCircle2, "bg-emerald-50", "text-emerald-600"],["Quote gesamt", `${gesamtPct}%`, Percent, "bg-indigo-50", "text-indigo-600"]].map(([label,value,Icon,iconBg,iconColor])=>(
+          <div key={label} className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}><Icon size={17} /></div>
+            <div className="min-w-0">
+              <div className="text-2xl font-bold text-slate-900 leading-none tabular-nums">{value}</div>
+              <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1 truncate">{label}</div>
+            </div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap:"wrap", alignItems:"center" }}>
         {[["pct","Niedrigste Quote zuerst"],["name","Nach Name"]].map(([id,label])=>(
           <button key={id} onClick={()=>setSortBy(id)} style={{ background: sortBy===id?C.navy:"transparent", color: sortBy===id?C.white:C.muted, border:`1px solid ${sortBy===id?C.navy:C.border}`, padding:"5px 13px", borderRadius:999, cursor:"pointer", fontSize:13, fontFamily:FONT }}>{label}</button>
         ))}
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Name, E-Mail oder Profil suchen…" style={{ ...css.inp, flex:1, minWidth:160, padding:"7px 12px", fontSize:13 }} />
       </div>
 
-      {ma.length===0 && <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Noch keine Mitarbeiter.</p>}
+      {ma.length===0 && <EmptyState icon={Users} text="Noch keine Mitarbeiter." />}
+      {ma.length>0 && visible.length===0 && <EmptyState icon={SearchX} text="Keine Mitarbeiter gefunden." />}
 
-      {sorted.map(({ m, assigned, done, open, pct }) => (
-        <details key={m.id} style={{ ...css.section, padding: "12px 16px" }}>
+      {visible.map(({ m, assigned, done, open, pct }) => (
+        <details key={m.id} className="fortschritt-row" style={{ ...css.section, padding: "12px 16px", transition:"box-shadow .15s ease, border-color .15s ease" }}>
           <summary style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <div>
-              <strong style={{ fontSize: 14 }}>{m.name}</strong>
-              <span style={{ color: C.muted, fontSize: 12, marginLeft: 10 }}>{m.email}{m.profil?.length?` · ${m.profil.join(", ")}`:""}</span>
+            <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+              <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColorClass(m.name)}`}>{avatarInitials(m.name)}</span>
+              <div style={{ minWidth:0 }}>
+                <strong style={{ fontSize: 14 }}>{m.name}</strong>
+                <div style={{ color: C.muted, fontSize: 12 }}>{m.email}{m.profil?.length?` · ${m.profil.join(", ")}`:""}</div>
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink:0 }}>
               <span style={{ fontSize: 12, color: C.muted }}>{done.length}/{assigned.length}</span>
               <div style={{ width: 90, height: 8, background: "#e7edf7", borderRadius: 999, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${pct ?? 0}%`, background: pct===null?C.border:pct===100?C.good.text:pct<50?C.bad.text:C.blueAccent, borderRadius: 999 }} />
+                <div style={{ height: "100%", width: `${pct ?? 0}%`, background: pct===null?C.border:pct===100?C.good.text:pct<50?C.bad.text:C.blueAccent, borderRadius: 999, transition:"width .3s ease" }} />
               </div>
               <strong style={{ fontSize: 13, minWidth: 36, textAlign: "right" }}>{pct===null?"–":`${pct}%`}</strong>
             </div>
@@ -1407,12 +1427,19 @@ function FortschrittView({ schulungen, ma }) {
             <p style={{ margin: "10px 0 0", fontSize: 13, color: C.muted }}>Keine Schulungen zugewiesen.</p>
           ) : (
             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-              {open.map(s => (
-                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 10px", background: C.warn.bg, border: `1px solid ${C.warn.border}`, borderRadius: 8 }}>
-                  <span>{s.titel}{s.pflicht?" · Pflicht":""}</span>
-                  <span style={{ color: C.warn.text, fontWeight: 600 }}>Offen</span>
-                </div>
-              ))}
+              {open.map(s => {
+                const fs = fristStatus(s.frist);
+                return (
+                  <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems:"center", gap:10, fontSize: 13, padding: "6px 10px", background: C.warn.bg, border: `1px solid ${C.warn.border}`, borderRadius: 8 }}>
+                    <span>{s.titel}{s.pflicht?" · Pflicht":""}</span>
+                    <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      {fs==="over"&&<span style={{ ...css.badge, background:C.bad.bg, color:C.bad.text }}>Überfällig</span>}
+                      {fs==="soon"&&<span style={{ ...css.badge, background:C.warn.bg, color:C.warn.text }}>Bald fällig</span>}
+                      <span style={{ color: C.warn.text, fontWeight: 600 }}>Offen</span>
+                    </span>
+                  </div>
+                );
+              })}
               {done.map(s => {
                 const nw = s.nachweise[m.id];
                 return (
@@ -1813,7 +1840,7 @@ function WissenView({ isAdmin, showToast }) {
       {/* Artikelliste */}
       {!selected && !editing && (
         <div>
-          {artikel.length===0 && <p style={{ color:C.muted, textAlign:"center", padding:40 }}>Noch keine Artikel.</p>}
+          {artikel.length===0 && <EmptyState icon={BookOpen} text="Noch keine Artikel." />}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {artikel.map(a=>{
               const videos=a.dateien.filter(d=>d.typ==="video").length;
@@ -2364,7 +2391,7 @@ export default function App() {
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Titel oder Dok.-Nr. suchen…" style={{ ...css.inp, flex:1, minWidth:160, padding:"7px 12px", fontSize:13 }} />
           </div>
           {schulungenLoading&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Schulungen werden geladen…</p>}
-          {!schulungenLoading&&filtered.length===0&&<p style={{ color:C.muted, textAlign:"center", padding:40 }}>Keine Schulungen gefunden.</p>}
+          {!schulungenLoading&&filtered.length===0&&<EmptyState icon={search||filter!=="alle"?SearchX:GraduationCap} text={search||filter!=="alle"?"Keine Schulungen gefunden.":"Noch keine Schulungen angelegt."} />}
           {filtered.map(sc=>{
             const nwCount=Object.keys(sc.nachweise||{}).length; const sent=effectiveEmpfaenger(sc,ma).length;
             const fs=fristStatus(sc.frist);
@@ -2433,6 +2460,7 @@ export default function App() {
         .hdrbtn:hover{background:rgba(255,255,255,.12)!important;filter:none!important}
         .hdrbtn-solid:hover{filter:brightness(.97)!important;box-shadow:0 2px 8px rgba(0,0,0,.2)!important}
         .ptab:hover{color:#2E4B6E!important;filter:none}
+        .fortschritt-row:hover{box-shadow:0 2px 4px rgba(22,35,58,.05), 0 8px 20px rgba(46,75,110,.08);border-color:#3A7CA5}
         input:focus,textarea:focus,select:focus{border-color:#3A7CA5;outline:none;box-shadow:0 0 0 3px rgba(58,124,165,.13)}
         ::-webkit-scrollbar{width:10px;height:10px}
         ::-webkit-scrollbar-thumb{background:#C5D0DE;border-radius:99px;border:2px solid #F0F4F8}
