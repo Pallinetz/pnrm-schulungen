@@ -1376,6 +1376,110 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
   );
 }
 
+// ─── Protokoll (Admin) – wer hat wann was geändert ───────────────────────────
+const AUDIT_TABLE_LABELS = {
+  mitarbeiter: "Mitarbeiter", schulungen: "Schulungen", wissen_artikel: "Wissen",
+  wissen_dateien: "Wissen-Dateien", wissen_kategorien: "Wissen-Kategorien", invite_tokens: "Einladungen",
+};
+const AUDIT_ACTION_STYLE = { INSERT: C.good, UPDATE: C.warn, DELETE: C.bad };
+
+function fmtDateTime(d) {
+  if (!d) return "—";
+  try { return new Date(d).toLocaleString("de-DE"); } catch { return d; }
+}
+
+function ProtokollView() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterTable, setFilterTable] = useState("");
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const { data, error } = await supabase.from("schulungen_audit_log").select("*").order("changed_at", { ascending: false }).limit(300);
+      if (!error) setRows(data || []);
+      setLoading(false);
+    })();
+  }, []);
+
+  const filtered = filterTable ? rows.filter(r => r.table_name === filterTable) : rows;
+
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:10 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:18, fontWeight:700, color:C.text }}>Protokoll</h2>
+          <p style={{ margin:"3px 0 0", fontSize:13, color:C.muted }}>Wer hat wann was geändert – letzte 300 Einträge.</p>
+        </div>
+        <select value={filterTable} onChange={e=>setFilterTable(e.target.value)} style={{ ...css.inp, width:"auto", padding:"7px 12px", fontSize:13 }}>
+          <option value="">Alle Bereiche</option>
+          {Object.entries(AUDIT_TABLE_LABELS).map(([k,l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+      </div>
+
+      {loading ? (
+        <p style={{ color:C.muted, fontSize:14 }}>Lädt…</p>
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={ClipboardList} text="Noch keine Einträge." />
+      ) : (
+        <div style={{ ...css.section, padding:0, overflow:"hidden" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13.5 }}>
+            <thead>
+              <tr style={{ background:C.blueDim }}>
+                <th style={{ textAlign:"left", padding:"10px 14px", color:C.muted, fontWeight:600, fontSize:12 }}>Zeitpunkt</th>
+                <th style={{ textAlign:"left", padding:"10px 14px", color:C.muted, fontWeight:600, fontSize:12 }}>Bereich</th>
+                <th style={{ textAlign:"left", padding:"10px 14px", color:C.muted, fontWeight:600, fontSize:12 }}>Aktion</th>
+                <th style={{ textAlign:"left", padding:"10px 14px", color:C.muted, fontWeight:600, fontSize:12 }}>Von</th>
+                <th style={{ width:90 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(row => {
+                const s = AUDIT_ACTION_STYLE[row.action] || { bg:"#EAECEF", border:C.border, text:C.muted };
+                return (
+                  <tr key={row.id} style={{ borderTop:`1px solid ${C.border}` }}>
+                    <td style={{ padding:"10px 14px", color:C.text }}>{fmtDateTime(row.changed_at)}</td>
+                    <td style={{ padding:"10px 14px", color:C.text }}>{AUDIT_TABLE_LABELS[row.table_name] || row.table_name}</td>
+                    <td style={{ padding:"10px 14px" }}>
+                      <span style={{ ...css.badge, background:s.bg, color:s.text }}>{row.action}</span>
+                    </td>
+                    <td style={{ padding:"10px 14px", color:C.text }}>{row.actor_email || "—"}</td>
+                    <td style={{ padding:"8px 14px", textAlign:"right" }}>
+                      <button onClick={()=>setDetail(row)} style={{ ...css.btnSec, padding:"5px 10px", fontSize:12 }}>Details</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {detail && (
+        <Modal onClose={()=>setDetail(null)} wide>
+          <h3 style={{ margin:"0 0 4px", fontSize:16, fontWeight:700 }}>{AUDIT_TABLE_LABELS[detail.table_name] || detail.table_name} – {detail.action}</h3>
+          <p style={{ fontSize:12.5, color:C.muted, margin:"0 0 14px" }}>{fmtDateTime(detail.changed_at)} · {detail.actor_email || "unbekannt"}</p>
+          <div style={{ display:"flex", gap:14, flexWrap:"wrap" }}>
+            {detail.old_data && (
+              <div style={{ flex:"1 1 260px" }}>
+                <div style={css.lbl}>Vorher</div>
+                <pre style={{ ...css.inp, fontFamily:"monospace", whiteSpace:"pre-wrap", fontSize:11.5, maxHeight:340, overflow:"auto" }}>{JSON.stringify(detail.old_data, null, 2)}</pre>
+              </div>
+            )}
+            {detail.new_data && (
+              <div style={{ flex:"1 1 260px" }}>
+                <div style={css.lbl}>Nachher</div>
+                <pre style={{ ...css.inp, fontFamily:"monospace", whiteSpace:"pre-wrap", fontSize:11.5, maxHeight:340, overflow:"auto" }}>{JSON.stringify(detail.new_data, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 // ─── Fortschritt (nur Super-Admin) ────────────────────────────────────────────
 function FortschrittView({ schulungen, ma }) {
   const [sortBy, setSortBy] = useState("pct");
@@ -2395,7 +2499,7 @@ export default function App() {
 
         {/* Tabs */}
         <div style={{ display:"flex", gap:4, borderBottom:`1px solid ${C.border}`, marginBottom:20 }}>
-          {[["schulungen","Schulungen"],["wissen","Wissen"],...(isAdmin?[["mitarbeiter","Mitarbeiter"]]:[]),...(isAdmin?[["fortschritt","Fortschritt"]]:[])]  .map(([id,label])=>(
+          {[["schulungen","Schulungen"],["wissen","Wissen"],...(isAdmin?[["mitarbeiter","Mitarbeiter"]]:[]),...(isAdmin?[["fortschritt","Fortschritt"]]:[]),...(isAdmin?[["protokoll","Protokoll"]]:[])]  .map(([id,label])=>(
             <button key={id} onClick={()=>setTab(id)} className="ptab" style={{ background: tab===id ? C.blueDim : "none", color:tab===id?C.navy:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:500, border:"none", borderBottom: tab===id ? `2px solid ${C.navy}` : "2px solid transparent", marginBottom:-1, borderRadius:"8px 8px 0 0", fontFamily:FONT, transition:"color .15s, background .15s" }}>{label}</button>
           ))}
         </div>
@@ -2460,6 +2564,7 @@ export default function App() {
         {tab==="wissen"&&<WissenView isAdmin={isAdmin} showToast={showToast} />}
         {tab==="mitarbeiter"&&isAdmin&&<MitarbeiterView ma={ma} setMa={setMa} showToast={showToast} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} user={user} onRefresh={loadMitarbeiter} />}
         {tab==="fortschritt"&&<FortschrittView schulungen={schulungen} ma={ma} />}
+        {tab==="protokoll"&&isAdmin&&<ProtokollView />}
 
         <footer style={{ marginTop:48, paddingTop:20, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, paddingBottom:28 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
