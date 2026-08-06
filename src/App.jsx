@@ -1710,6 +1710,47 @@ function formatSize(bytes) {
   return `${(bytes/1024/1024).toFixed(1)} MB`;
 }
 
+// ─── Drag&Drop-Zone (Anhänge-Box, Inhalt-Textarea, Detailansicht) ─────────────
+function DropZone({ onFiles, children, style }) {
+  const [active, setActive] = useState(false);
+  return (
+    <div
+      onDragOver={e=>{ e.preventDefault(); setActive(true); }}
+      onDragLeave={()=>setActive(false)}
+      onDrop={e=>{
+        e.preventDefault(); setActive(false);
+        const files = Array.from(e.dataTransfer.files||[]);
+        if (files.length) onFiles(files);
+      }}
+      style={{ ...style, outline: active ? "2px dashed #3b82f6" : "2px dashed transparent", outlineOffset:2, borderRadius:8 }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── Inhalt mit eingebetteten Bildern (![alt](storage-pfad) wird zu <img>) ────
+function WissenInlineImage({ alt, path }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => { getSignedUrl(path).then(setUrl).catch(console.error); }, [path]);
+  // ponytail: kein Fehler-Fallback im UI, falls Upload zuvor fehlschlug (path="pending:..." existiert nicht im Bucket) —
+  // bleibt dann dauerhaft als leerer Platzhalter stehen; Admin merkt es beim Ansehen des Artikels.
+  if (!url) return <div style={{ height:140, background:"#f1f5f9", borderRadius:8, marginBottom:12 }} />;
+  return <img src={url} alt={alt} style={{ maxWidth:"100%", borderRadius:8, marginBottom:12, display:"block" }} />;
+}
+function WissenInhalt({ text }) {
+  const parts = (text||"").split(/(!\[[^\]]*\]\([^)]+\))/g);
+  return (
+    <div style={{ marginBottom:20 }}>
+      {parts.map((part,i) => {
+        const m = part.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+        if (m) return <WissenInlineImage key={i} alt={m[1]} path={m[2]} />;
+        return part.trim() ? <p key={i} style={{ margin:"0 0 12px", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{part}</p> : null;
+      })}
+    </div>
+  );
+}
+
 function WissenView({ isAdmin, showToast }) {
   const [artikel, setArtikel] = useState([]);
   const [kategorieMap, setKategorieMap] = useState({});
@@ -1764,14 +1805,24 @@ function WissenView({ isAdmin, showToast }) {
       setArtikel(a=>a.map(x=>x.id===editing?{ ...data, dateien:data.wissen_dateien ?? [] }:x));
       showToast("Gespeichert.");
     }
+    let inhaltMitBildern = payload.inhalt;
     for (const file of pendingFiles) {
       try {
         const result = await uploadDokument(file);
         const { data:d, error:e } = await supabase.from("wissen_dateien")
           .insert({ artikel_id:artikelId, name:file.name, typ:getFileType(file.name), url:result.path, groesse:file.size })
           .select().single();
-        if (!e && d) setArtikel(a=>a.map(x=>x.id===artikelId?{ ...x, dateien:[...x.dateien,d] }:x));
+        if (!e && d) {
+          setArtikel(a=>a.map(x=>x.id===artikelId?{ ...x, dateien:[...x.dateien,d] }:x));
+          // Im Textarea per Drag&Drop eingefügte Bilder stehen als "pending:<dateiname>" im Text,
+          // bis der echte Storage-Pfad da ist (siehe Inhalt-DropZone unten).
+          inhaltMitBildern = inhaltMitBildern.replaceAll(`pending:${file.name}`, d.url);
+        }
       } catch (fe) { showToast(`"${file.name}" Upload fehlgeschlagen.`); }
+    }
+    if (inhaltMitBildern !== payload.inhalt) {
+      const { data:updated, error:ue } = await supabase.from("wissen_artikel").update({ inhalt:inhaltMitBildern }).eq("id",artikelId).select().single();
+      if (!ue) setArtikel(a=>a.map(x=>x.id===artikelId?{ ...x, inhalt:updated.inhalt }:x));
     }
     setPendingFiles([]);
     setEditing(null);
@@ -1884,13 +1935,22 @@ function WissenView({ isAdmin, showToast }) {
             </div>
           ))}
 
-          <label style={css.lbl}>Inhalt</label>
-          <textarea value={form.inhalt} onChange={e=>setF("inhalt",e.target.value)} style={{ ...css.inp, minHeight:100, resize:"vertical", marginBottom:14 }} />
+          <label style={css.lbl}>Inhalt <span style={{ fontWeight:400, color:C.muted, fontSize:11 }}>– Bilder per Drag&Drop direkt in den Text ziehen</span></label>
+          <DropZone
+            style={{ marginBottom:14 }}
+            onFiles={files=>{
+              setPendingFiles(p=>[...p,...files]);
+              const bilder = files.filter(f=>f.type.startsWith("image/"));
+              if (bilder.length) setF("inhalt", form.inhalt + bilder.map(f=>`\n![${f.name}](pending:${f.name})\n`).join(""));
+            }}
+          >
+            <textarea value={form.inhalt} onChange={e=>setF("inhalt",e.target.value)} style={{ ...css.inp, minHeight:100, resize:"vertical" }} />
+          </DropZone>
 
-          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, marginBottom:14 }}>
+          <DropZone onFiles={files=>setPendingFiles(p=>[...p,...files])} style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, marginBottom:14 }}>
             <label style={{ ...css.lbl, display:"flex", justifyContent:"space-between" }}>
               <span>📎 Anhänge</span>
-              <span style={{ fontWeight:400, color:C.muted, fontSize:11 }}>PDF, Word, Excel, PowerPoint, Bilder</span>
+              <span style={{ fontWeight:400, color:C.muted, fontSize:11 }}>PDF, Word, Excel, PowerPoint, Bilder – auch per Drag&Drop</span>
             </label>
             <input ref={formFileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif" style={{ display:"none" }}
               onChange={e=>{ setPendingFiles(p=>[...p,...Array.from(e.target.files)]); e.target.value=""; }} />
@@ -1907,7 +1967,7 @@ function WissenView({ isAdmin, showToast }) {
                 ))}
               </div>
             )}
-          </div>
+          </DropZone>
 
           <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
             <button onClick={()=>{ setEditing(null); setPendingFiles([]); }} style={css.btnSec}>Abbrechen</button>
@@ -1922,7 +1982,7 @@ function WissenView({ isAdmin, showToast }) {
           <span style={{ ...css.badge, marginBottom:10, marginRight:6, display:"inline-block" }}>{kategorieMap[art.kategorie_id]?.name ?? art.kategorie ?? "—"}</span>
           {isAdmin && art.status && art.status!=="Freigegeben" && <span style={{ ...css.badge, marginBottom:10, display:"inline-block", background:"#fde68a", color:"#92400e" }}>{art.status}</span>}
           <h2 style={{ margin:"0 0 14px", fontSize:20 }}>{art.titel}</h2>
-          <p style={{ margin:"0 0 20px", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{art.inhalt}</p>
+          <WissenInhalt text={art.inhalt} />
           {art.dateien.filter(d=>d.typ==="video").map(d=>(
             <div key={d.id} style={{ position:"relative", marginBottom:8 }}>
               <WissenVideoBlock datei={d} />
@@ -1959,12 +2019,14 @@ function WissenView({ isAdmin, showToast }) {
             <div style={{ marginTop:16, borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
               <p style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:C.muted }}>Video anhängen</p>
               <VideoUploader label="Video hochladen (MP4)" onUploaded={({path,name})=>addVideo(art.id,{path,name})} />
-              <p style={{ margin:"14px 0 8px", fontSize:13, fontWeight:700, color:C.muted }}>Datei anhängen</p>
-              <input ref={detailFileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" style={{ display:"none" }}
-                onChange={async e=>{ for (const f of Array.from(e.target.files)) await addFileInDetail(f); e.target.value=""; }} />
-              <button onClick={()=>detailFileRef.current?.click()} disabled={uploadingDetail} style={{ ...css.btnSec, fontSize:13, opacity:uploadingDetail?0.6:1 }}>
-                {uploadingDetail ? "⏳ Wird hochgeladen…" : "📎 Datei anhängen"}
-              </button>
+              <p style={{ margin:"14px 0 8px", fontSize:13, fontWeight:700, color:C.muted }}>Datei anhängen <span style={{fontWeight:400,color:C.muted}}>– auch per Drag&Drop, mehrere gleichzeitig</span></p>
+              <DropZone onFiles={async files=>{ for (const f of files) await addFileInDetail(f); }}>
+                <input ref={detailFileRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" style={{ display:"none" }}
+                  onChange={async e=>{ for (const f of Array.from(e.target.files)) await addFileInDetail(f); e.target.value=""; }} />
+                <button onClick={()=>detailFileRef.current?.click()} disabled={uploadingDetail} style={{ ...css.btnSec, fontSize:13, opacity:uploadingDetail?0.6:1 }}>
+                  {uploadingDetail ? "⏳ Wird hochgeladen…" : "📎 Datei anhängen"}
+                </button>
+              </DropZone>
             </div>
           )}
         </div>
