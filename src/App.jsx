@@ -1735,8 +1735,8 @@ function WissenInlineImage({ alt, path }) {
   useEffect(() => { getSignedUrl(path).then(setUrl).catch(console.error); }, [path]);
   // ponytail: kein Fehler-Fallback im UI, falls Upload zuvor fehlschlug (path="pending:..." existiert nicht im Bucket) —
   // bleibt dann dauerhaft als leerer Platzhalter stehen; Admin merkt es beim Ansehen des Artikels.
-  if (!url) return <div style={{ height:140, background:"#f1f5f9", borderRadius:8, marginBottom:12 }} />;
-  return <img src={url} alt={alt} style={{ maxWidth:"100%", borderRadius:8, marginBottom:12, display:"block" }} />;
+  if (!url) return <div style={{ width:260, height:140, background:"#f1f5f9", borderRadius:8, marginBottom:12 }} />;
+  return <img src={url} alt={alt} style={{ maxWidth:260, width:"100%", borderRadius:8, marginBottom:12, display:"block" }} />;
 }
 function WissenInhalt({ text }) {
   const parts = (text||"").split(/(!\[[^\]]*\]\([^)]+\))/g);
