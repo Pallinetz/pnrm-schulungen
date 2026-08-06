@@ -1755,11 +1755,22 @@ function moveImage(segments, imgIdx, dir) {
 
 function WissenInlineImage({ alt, path, width=260 }) {
   const [url, setUrl] = useState(null);
+  const [big, setBig] = useState(false);
   useEffect(() => { getSignedUrl(path).then(setUrl).catch(console.error); }, [path]);
   // ponytail: kein Fehler-Fallback im UI, falls Upload zuvor fehlschlug (path="pending:..." existiert nicht im Bucket) —
   // bleibt dann dauerhaft als leerer Platzhalter stehen; Admin merkt es beim Ansehen des Artikels.
   if (!url) return <div style={{ width, height:width*0.55, maxWidth:"100%", background:"#f1f5f9", borderRadius:8 }} />;
-  return <img src={url} alt={alt} style={{ width, maxWidth:"100%", borderRadius:8, display:"block" }} />;
+  return (
+    <>
+      <img src={url} alt={alt} onClick={()=>setBig(true)} title="Zum Vergrößern klicken" style={{ width, maxWidth:"100%", borderRadius:8, display:"block", cursor:"zoom-in" }} />
+      {big && (
+        <Modal onClose={()=>setBig(false)} wide>
+          <img src={url} alt={alt} style={{ maxWidth:"100%", maxHeight:"85vh", display:"block", borderRadius:8, margin:"0 auto" }} />
+          {alt && <p style={{ margin:"12px 0 0", textAlign:"center", color:C.muted, fontSize:13 }}>{alt}</p>}
+        </Modal>
+      )}
+    </>
+  );
 }
 function WissenInhalt({ text }) {
   const segments = parseSegments(text);
