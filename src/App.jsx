@@ -1729,24 +1729,81 @@ function DropZone({ onFiles, children, style }) {
   );
 }
 
-// ─── Inhalt mit eingebetteten Bildern (![alt](storage-pfad) wird zu <img>) ────
-function WissenInlineImage({ alt, path }) {
+// ─── Inhalt mit eingebetteten Bildern (![alt](storage-pfad =breite) wird zu <img>) ─
+// Bild-Token-Syntax: ![alt](pfad) oder ![alt](pfad =360) fuer eine Breite in px (Default 260).
+// Direkt aufeinanderfolgende Bild-Token (nur Whitespace dazwischen) werden nebeneinander gerendert.
+const IMG_TOKEN_RE = /(!\[[^\]]*\]\([^)\s]+(?:\s+=\d+)?\))/g;
+const IMG_TOKEN_MATCH_RE = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+=(\d+))?\)$/;
+
+function parseSegments(text) {
+  return (text||"").split(IMG_TOKEN_RE).map(raw => {
+    const m = raw.match(IMG_TOKEN_MATCH_RE);
+    return m ? { type:"img", alt:m[1], path:m[2], width:m[3]?Number(m[3]):260 } : { type:"text", raw };
+  });
+}
+function serializeSegments(segments) {
+  return segments.map(s => s.type==="img" ? `![${s.alt}](${s.path}${s.width!==260?` =${s.width}`:""})` : s.raw).join("");
+}
+function moveImage(segments, imgIdx, dir) {
+  const positions = segments.map((s,i)=>s.type==="img"?i:-1).filter(i=>i>=0);
+  const from = positions[imgIdx], to = positions[imgIdx+dir];
+  if (to===undefined) return segments;
+  const copy = [...segments];
+  [copy[from], copy[to]] = [copy[to], copy[from]];
+  return copy;
+}
+
+function WissenInlineImage({ alt, path, width=260 }) {
   const [url, setUrl] = useState(null);
   useEffect(() => { getSignedUrl(path).then(setUrl).catch(console.error); }, [path]);
   // ponytail: kein Fehler-Fallback im UI, falls Upload zuvor fehlschlug (path="pending:..." existiert nicht im Bucket) —
   // bleibt dann dauerhaft als leerer Platzhalter stehen; Admin merkt es beim Ansehen des Artikels.
-  if (!url) return <div style={{ width:260, height:140, background:"#f1f5f9", borderRadius:8, marginBottom:12 }} />;
-  return <img src={url} alt={alt} style={{ maxWidth:260, width:"100%", borderRadius:8, marginBottom:12, display:"block" }} />;
+  if (!url) return <div style={{ width, height:width*0.55, maxWidth:"100%", background:"#f1f5f9", borderRadius:8 }} />;
+  return <img src={url} alt={alt} style={{ width, maxWidth:"100%", borderRadius:8, display:"block" }} />;
 }
 function WissenInhalt({ text }) {
-  const parts = (text||"").split(/(!\[[^\]]*\]\([^)]+\))/g);
+  const segments = parseSegments(text);
+  const rows = [];
+  for (let i=0; i<segments.length; i++) {
+    const seg = segments[i];
+    if (seg.type==="text") { if (seg.raw.trim()) rows.push({ type:"text", raw:seg.raw }); continue; }
+    const group = [seg];
+    while (segments[i+1]?.type==="text" && !segments[i+1].raw.trim() && segments[i+2]?.type==="img") { group.push(segments[i+2]); i+=2; }
+    rows.push({ type:"imgrow", images:group });
+  }
   return (
     <div style={{ marginBottom:20 }}>
-      {parts.map((part,i) => {
-        const m = part.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
-        if (m) return <WissenInlineImage key={i} alt={m[1]} path={m[2]} />;
-        return part.trim() ? <p key={i} style={{ margin:"0 0 12px", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{part}</p> : null;
-      })}
+      {rows.map((row,i) => row.type==="text"
+        ? <p key={i} style={{ margin:"0 0 12px", whiteSpace:"pre-wrap", lineHeight:1.7 }}>{row.raw}</p>
+        : <div key={i} style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:12 }}>
+            {row.images.map((img,j) => <WissenInlineImage key={j} alt={img.alt} path={img.path} width={img.width} />)}
+          </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Bilder-Verwaltung im Formular: Reihenfolge, Größe, nebeneinander ─────────
+function WissenBilderPanel({ inhalt, onChange }) {
+  const segments = parseSegments(inhalt);
+  const images = segments.filter(s=>s.type==="img");
+  if (!images.length) return null;
+  const setWidth = (i,w) => { const s=parseSegments(inhalt); const pos=s.map((x,idx)=>x.type==="img"?idx:-1).filter(idx=>idx>=0)[i]; s[pos].width=w; onChange(serializeSegments(s)); };
+  const move = (i,dir) => onChange(serializeSegments(moveImage(parseSegments(inhalt), i, dir)));
+  return (
+    <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, marginBottom:14 }}>
+      <label style={css.lbl}>🖼️ Bilder im Text <span style={{ fontWeight:400, color:C.muted, fontSize:11 }}>– Größe, Reihenfolge; direkt hintereinander (Pfeil ▶ ohne Absatz dazwischen) = nebeneinander</span></label>
+      <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
+        {images.map((img,i) => (
+          <div key={i} style={{ display:"flex", alignItems:"center", gap:10, background:"#f7f9fc", border:`1px solid ${C.border}`, borderRadius:8, padding:"7px 11px" }}>
+            <button onClick={()=>move(i,-1)} disabled={i===0} style={{ ...css.btnSec, padding:"2px 8px", fontSize:12, opacity:i===0?0.4:1 }}>▲</button>
+            <button onClick={()=>move(i,1)} disabled={i===images.length-1} style={{ ...css.btnSec, padding:"2px 8px", fontSize:12, opacity:i===images.length-1?0.4:1 }}>▼</button>
+            <span style={{ flex:1, fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{img.alt}</span>
+            <input type="range" min="80" max="600" step="20" value={img.width} onChange={e=>setWidth(i,Number(e.target.value))} style={{ width:100 }} />
+            <span style={{ fontSize:11, color:C.muted, width:40 }}>{img.width}px</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1946,6 +2003,8 @@ function WissenView({ isAdmin, showToast }) {
           >
             <textarea value={form.inhalt} onChange={e=>setF("inhalt",e.target.value)} style={{ ...css.inp, minHeight:100, resize:"vertical" }} />
           </DropZone>
+
+          <WissenBilderPanel inhalt={form.inhalt} onChange={v=>setF("inhalt",v)} />
 
           <DropZone onFiles={files=>setPendingFiles(p=>[...p,...files])} style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, marginBottom:14 }}>
             <label style={{ ...css.lbl, display:"flex", justifyContent:"space-between" }}>
