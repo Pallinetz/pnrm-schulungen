@@ -172,7 +172,7 @@ function fristStatus(frist) {
 function Modal({ onClose, children, wide }) {
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,backdropFilter:"blur(3px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white,borderRadius:8,padding:28,width:wide?"94%":"90%",maxWidth:wide?1000:700,maxHeight:"92vh",overflowY:"auto",position:"relative",boxShadow:"0 24px 64px rgba(0,0,0,.18)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white,borderRadius:8,padding:28,width:wide?"94%":"90%",maxWidth:wide?1000:700,minWidth:0,maxHeight:"92vh",overflowY:"auto",overflowX:"hidden",position:"relative",boxShadow:"0 24px 64px rgba(0,0,0,.18)" }}>
         <button onClick={onClose} style={{ position:"absolute",top:13,right:16,background:"none",border:"none",fontSize:20,color:C.muted,cursor:"pointer",lineHeight:1 }}>✕</button>
         {children}
       </div>
