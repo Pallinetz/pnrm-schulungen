@@ -17,8 +17,7 @@ export async function uploadDokument(file, onProgress) {
 
   if (error) throw error
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
-  return { path, publicUrl: data.publicUrl, name: file.name, ext }
+  return { path, name: file.name, ext }
 }
 
 export async function deleteDokument(path) {
@@ -26,7 +25,10 @@ export async function deleteDokument(path) {
   if (error) throw error
 }
 
-export function getPublicUrl(path) {
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
-  return data.publicUrl
+// Bucket ist privat -- Downloads laufen ueber zeitlich begrenzte signierte URLs,
+// nicht mehr ueber eine feste Public-URL.
+export async function getSignedUrl(path, expiresInSeconds = 60) {
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresInSeconds)
+  if (error) throw error
+  return data.signedUrl
 }

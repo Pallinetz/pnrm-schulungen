@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { VideoUploader } from "./components/VideoUploader";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { getSignedVideoUrl, deleteVideo } from "./lib/videoStorage";
-import { uploadDokument, deleteDokument } from "./lib/dokumentStorage";
+import { uploadDokument, deleteDokument, getSignedUrl } from "./lib/dokumentStorage";
 import { supabase } from "./lib/supabase";
 
 // functions.invoke() only puts the generic "Edge Function returned a non-2xx
@@ -1768,7 +1768,7 @@ function WissenView({ isAdmin, showToast }) {
       try {
         const result = await uploadDokument(file);
         const { data:d, error:e } = await supabase.from("wissen_dateien")
-          .insert({ artikel_id:artikelId, name:file.name, typ:getFileType(file.name), url:result.publicUrl, groesse:file.size })
+          .insert({ artikel_id:artikelId, name:file.name, typ:getFileType(file.name), url:result.path, groesse:file.size })
           .select().single();
         if (!e && d) setArtikel(a=>a.map(x=>x.id===artikelId?{ ...x, dateien:[...x.dateien,d] }:x));
       } catch (fe) { showToast(`"${file.name}" Upload fehlgeschlagen.`); }
@@ -1804,7 +1804,7 @@ function WissenView({ isAdmin, showToast }) {
     try {
       const result = await uploadDokument(file);
       const { data, error } = await supabase.from("wissen_dateien")
-        .insert({ artikel_id:selected, name:file.name, typ:getFileType(file.name), url:result.publicUrl, groesse:file.size })
+        .insert({ artikel_id:selected, name:file.name, typ:getFileType(file.name), url:result.path, groesse:file.size })
         .select().single();
       if (error) throw error;
       setArtikel(a=>a.map(x=>x.id===selected ? { ...x, dateien:[...x.dateien,data] } : x));
@@ -1817,8 +1817,7 @@ function WissenView({ isAdmin, showToast }) {
     const { error } = await supabase.from("wissen_dateien").delete().eq("id",datei.id);
     if (error) { showToast(`Fehler: ${error.message}`); return; }
     setArtikel(a=>a.map(x=>x.id===artikelId ? { ...x, dateien:x.dateien.filter(d=>d.id!==datei.id) } : x));
-    const path = (datei.url||"").split("/wissen-dokumente/")[1];
-    if (path) deleteDokument(path).catch(console.error);
+    if (datei.url) deleteDokument(datei.url).catch(console.error);
     showToast("Datei entfernt.");
   };
 
@@ -1947,7 +1946,7 @@ function WissenView({ isAdmin, showToast }) {
                         <div style={{ fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
                         {d.groesse && <div style={{ fontSize:11, color:C.muted }}>{formatSize(d.groesse)}</div>}
                       </div>
-                      <a href={d.url} target="_blank" rel="noreferrer" style={{ ...css.btnSec, fontSize:12, padding:"5px 11px", textDecoration:"none", whiteSpace:"nowrap", display:"inline-block" }}>⬇ Öffnen</a>
+                      <button onClick={async()=>{ try { window.open(await getSignedUrl(d.url), "_blank"); } catch(e) { alert("Datei konnte nicht geöffnet werden: "+e.message); } }} style={{ ...css.btnSec, fontSize:12, padding:"5px 11px" }}>⬇ Öffnen</button>
                       {isAdmin && <button onClick={()=>removeDatei(art.id,d)} style={{ ...css.btnDanger, padding:"5px 9px", fontSize:12 }}>✕</button>}
                     </div>
                   );
