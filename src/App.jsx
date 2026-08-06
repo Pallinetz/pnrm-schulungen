@@ -2005,6 +2005,14 @@ function WissenView({ isAdmin, showToast }) {
           </DropZone>
 
           <WissenBilderPanel inhalt={form.inhalt} onChange={v=>setF("inhalt",v)} />
+          {parseSegments(form.inhalt).some(s=>s.type==="img") && (
+            <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, marginBottom:14 }}>
+              <label style={css.lbl}>👁️ Vorschau</label>
+              <div style={{ border:`1px solid ${C.border}`, borderRadius:8, padding:14, marginTop:6 }}>
+                <WissenInhalt text={form.inhalt} />
+              </div>
+            </div>
+          )}
 
           <DropZone onFiles={files=>setPendingFiles(p=>[...p,...files])} style={{ borderTop:`1px solid ${C.border}`, paddingTop:14, marginBottom:14 }}>
             <label style={{ ...css.lbl, display:"flex", justifyContent:"space-between" }}>
