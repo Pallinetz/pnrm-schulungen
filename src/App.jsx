@@ -126,8 +126,8 @@ const css = {
   notice: { background:C.warn.bg, border:`1px solid ${C.warn.border}`, color:C.warn.text, padding:"12px 16px", borderRadius:8, fontSize:14 },
   module: { borderLeft:`4px solid ${C.navy}`, paddingLeft:14, margin:"16px 0" },
   badge: { display:"inline-block", background:C.blueDim, color:C.navy, padding:"4px 10px", borderRadius:6, fontWeight:600, fontSize:12 },
-  docmeta: { display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginTop:12, fontSize:13 },
-  docmetaCell: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:8, padding:"8px 10px" },
+  docmeta: { display:"grid", gridTemplateColumns:"repeat(4,minmax(0,1fr))", gap:8, marginTop:12, fontSize:13 },
+  docmetaCell: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:8, padding:"8px 10px", minWidth:0, overflowWrap:"break-word" },
   qBox: { border:`1px solid ${C.border}`, background:C.bg, borderRadius:10, padding:"13px 15px", marginBottom:12 },
   confirmBox: { display:"flex", gap:10, alignItems:"flex-start", border:`1px solid ${C.border}`, background:C.bg, borderRadius:8, padding:12, margin:"8px 0" },
   progress: { height:5, background:C.border, borderRadius:999, overflow:"hidden", marginTop:10 },
@@ -331,7 +331,7 @@ function SchulungsPlayer({ sc, onClose, onNachweis }) {
             <p>Diese Unterweisung ist als gelenktes internes Schulungsdokument nach DIN EN 15224 aufgebaut. Sie enthält Dokumenten-Nr., Version, Status, Freigabeangaben, Gültigkeit, Quiz und Nachweis.</p>
             <div style={css.notice}><strong>Grundsatz:</strong> {sc.grundsatz}</div>
             {/* Erweitertes Metadaten-Grid */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:14, fontSize:13 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", gap:8, marginTop:14, fontSize:13 }}>
               {[
                 ["Geltungsbereich", sc.geltungsbereich],
                 ["Bezugsdokumente", sc.bezugsdokumente],
@@ -340,7 +340,7 @@ function SchulungsPlayer({ sc, onClose, onNachweis }) {
                 ["Lernziele", sc.lernziele],
                 ["Nächste Prüfung", sc.naechstePruefung],
               ].map(([k,v])=>(
-                <div key={k} style={{ border:`1px solid ${C.border}`, background:"#fbfcff", borderRadius:9, padding:"8px 11px" }}>
+                <div key={k} style={{ border:`1px solid ${C.border}`, background:"#fbfcff", borderRadius:9, padding:"8px 11px", minWidth:0, overflowWrap:"break-word" }}>
                   <strong>{k}:</strong><br/><span style={{ color:C.muted }}>{v||"–"}</span>
                 </div>
               ))}
@@ -377,9 +377,9 @@ function SchulungsPlayer({ sc, onClose, onNachweis }) {
         <div>
           <div style={css.section}>
             <h2>Checklisten</h2>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", gap:10 }}>
               {(sc.checkliste||[]).map((item,i)=>(
-                <div key={i} style={{ border:`1px solid ${C.border}`, background:"#fbfcff", borderRadius:12, padding:12, fontSize:14 }}>☑ {item}</div>
+                <div key={i} style={{ border:`1px solid ${C.border}`, background:"#fbfcff", borderRadius:12, padding:12, fontSize:14, minWidth:0, overflowWrap:"break-word" }}>☑ {item}</div>
               ))}
             </div>
           </div>
@@ -1601,12 +1601,12 @@ function SendModal({ sc, ma, onClose, onSend }) {
         <button onClick={()=>setSel(new Set(ma.map(m=>m.id)))} style={{ ...css.btnSec, padding:"6px 12px", fontSize:12 }}>Alle</button>
       </div>
       <p style={{ margin:"0 0 8px", fontSize:12, color:C.muted }}>Personen mit passendem Profil (Zielgruppe: {(sc.zielgruppen||[]).join(", ")||"–"}) sind automatisch zugeordnet und lassen sich hier nicht abwählen.</p>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", gap:8, marginBottom:14 }}>
         {ma.map(m=>{
           const auto = matchesZielgruppe(sc.zielgruppen, m.profil);
           const checked = auto || sel.has(m.id);
           return (
-          <label key={m.id} style={{ display:"flex", alignItems:"center", gap:10, border:`1px solid ${checked?C.blue:C.border}`, background:checked?C.blueDim:"#fbfcff", borderRadius:11, padding:"9px 13px", cursor:auto?"default":"pointer", opacity:auto?0.85:1 }}>
+          <label key={m.id} style={{ display:"flex", alignItems:"center", gap:10, border:`1px solid ${checked?C.blue:C.border}`, background:checked?C.blueDim:"#fbfcff", borderRadius:11, padding:"9px 13px", cursor:auto?"default":"pointer", opacity:auto?0.85:1, minWidth:0 }}>
             <input type="checkbox" checked={checked} disabled={auto} onChange={()=>toggle(m.id)} style={{ accentColor:C.blue, width:17, height:17 }} />
             <div><div style={{ fontWeight:700, fontSize:13 }}>{m.name}{auto&&<span style={{ marginLeft:8, fontSize:11, fontWeight:700, color:C.blue }}>· Zielgruppe</span>}</div><div style={{ fontSize:11, color:C.muted }}>{m.rolle} · {m.team}</div></div>
           </label>
