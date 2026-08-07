@@ -2601,14 +2601,14 @@ export default function App() {
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:FONT, color:C.text, fontSize:15 }}>
       {/* Header */}
-      <header className="h-14 sticky top-0 z-10 border-b border-black/10" style={{ background:`linear-gradient(90deg, ${C.navyDark} 0%, ${C.navy} 100%)` }}>
-        <div className="max-w-[1400px] mx-auto h-full px-6 flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-10 border-b border-black/10" style={{ background:`linear-gradient(90deg, ${C.navyDark} 0%, ${C.navy} 100%)` }}>
+        <div className="max-w-[1400px] mx-auto min-h-14 px-3 sm:px-6 py-2 sm:py-0 flex flex-wrap items-center justify-between gap-3">
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
             <PNRMLogo compact white />
-            <div style={{ width:1, height:22, background:"rgba(255,255,255,.22)" }} />
-            <span style={{ color:C.white, fontSize:13.5, fontWeight:600, letterSpacing:"0.02em", opacity:0.92 }}>Schulungen &amp; Wissen</span>
+            <div className="hidden sm:block" style={{ width:1, height:22, background:"rgba(255,255,255,.22)" }} />
+            <span className="hidden sm:inline" style={{ color:C.white, fontSize:13.5, fontWeight:600, letterSpacing:"0.02em", opacity:0.92 }}>Schulungen &amp; Wissen</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {isAdmin && <button className="hdrbtn" onClick={()=>exportExcel(schulungen,ma)} style={{ appearance:"none", background:"transparent", color:C.white, border:"1px solid rgba(255,255,255,.3)", borderRadius:8, padding:"6px 12px", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:FONT }}>Excel-Export</button>}
             {isAdmin&&<button className="hdrbtn-solid" onClick={()=>{setActive(null);setModal("neu");setTab("schulungen");}} style={{ appearance:"none", background:C.white, color:C.navy, border:0, borderRadius:8, padding:"6px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:FONT, boxShadow:"0 1px 4px rgba(0,0,0,.15)" }}>+ Neue Schulung</button>}
             {user && <HeaderProfileMenu user={user} isAdmin={isAdmin} onSignOut={()=>supabase.auth.signOut()} />}
@@ -2637,9 +2637,9 @@ export default function App() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display:"flex", gap:4, borderBottom:`1px solid ${C.border}`, marginBottom:20 }}>
+        <div style={{ display:"flex", gap:4, borderBottom:`1px solid ${C.border}`, marginBottom:20, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
           {[["schulungen","Schulungen"],["wissen","Wissen"],...(isAdmin?[["mitarbeiter","Mitarbeiter"]]:[]),...(isAdmin?[["fortschritt","Fortschritt"]]:[]),...(isAdmin?[["protokoll","Protokoll"]]:[])]  .map(([id,label])=>(
-            <button key={id} onClick={()=>setTab(id)} className="ptab" style={{ background: tab===id ? C.blueDim : "none", color:tab===id?C.navy:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:500, border:"none", borderBottom: tab===id ? `2px solid ${C.navy}` : "2px solid transparent", marginBottom:-1, borderRadius:"8px 8px 0 0", fontFamily:FONT, transition:"color .15s, background .15s" }}>{label}</button>
+            <button key={id} onClick={()=>setTab(id)} className="ptab" style={{ background: tab===id ? C.blueDim : "none", color:tab===id?C.navy:C.muted, padding:"10px 18px", cursor:"pointer", fontSize:14, fontWeight:tab===id?700:500, border:"none", borderBottom: tab===id ? `2px solid ${C.navy}` : "2px solid transparent", marginBottom:-1, borderRadius:"8px 8px 0 0", fontFamily:FONT, transition:"color .15s, background .15s", whiteSpace:"nowrap", flexShrink:0 }}>{label}</button>
           ))}
         </div>
 
@@ -2690,7 +2690,7 @@ export default function App() {
                   <h3 style={{ margin:"0 0 4px", fontSize:17, fontWeight:600, color:C.text }}>{sc.titel}</h3>
                   <p style={{ margin:0, fontSize:13, color:C.muted }}>{sc.dokNr} · v{sc.version} · {sc.gueltigAb}{sent>0?` · ${sent} Empf. · ${nwCount}/${sent} Nachweise`:""}</p>
                 </div>
-                <div style={{ display:"flex", gap:7 }} onClick={e=>e.stopPropagation()}>
+                <div style={{ display:"flex", gap:7, flexWrap:"wrap", justifyContent:"flex-end" }} onClick={e=>e.stopPropagation()}>
                   {isAdmin&&<button onClick={()=>{setActive(sc);setModal("edit");}} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>Bearbeiten</button>}
                   {isAdmin&&sent>0&&<button onClick={()=>{setActive(sc);setModal("nw");}} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>Nachweise</button>}
                   {isAdmin&&sent>0&&nwCount<sent&&<button onClick={()=>{setActive(sc);setModal("reminder");}} style={{ ...css.btnSec, padding:"6px 12px", fontSize:13 }}>🔔 Erinnerung</button>}

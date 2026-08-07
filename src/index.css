@@ -8,6 +8,7 @@ body {
   margin: 0;
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden; /* Sicherheitsnetz: kein page-weiter Horizontalscroll durch überbreite Flex-Zeilen auf Mobilgeräten */
 }
 
 #root {
