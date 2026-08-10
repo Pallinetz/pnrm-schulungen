@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MoreHorizontal, GraduationCap, CheckCircle2, Send, FileCheck2, Users, ChevronDown, LogOut, ClipboardList, Percent, SearchX, BookOpen } from "lucide-react";
+import { MoreHorizontal, GraduationCap, CheckCircle2, Send, FileCheck2, Users, UserCheck, ChevronDown, LogOut, ClipboardList, Percent, SearchX, BookOpen } from "lucide-react";
 import * as XLSX from "xlsx";
 import { VideoUploader } from "./components/VideoUploader";
 import { VideoPlayer } from "./components/VideoPlayer";
@@ -2618,13 +2618,23 @@ export default function App() {
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">
         {/* Stats */}
-        <div className={`grid grid-cols-2 ${isAdmin ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-3 mb-6`}>
+        <div className={`grid grid-cols-2 ${isAdmin ? "sm:grid-cols-3 lg:grid-cols-6" : "sm:grid-cols-3"} gap-3 mb-6`}>
           {[
             ["Schulungen", schulungen.length, GraduationCap, "bg-blue-50", "text-blue-600"],
             ["Freigegeben", schulungen.filter(s=>s.status==="Freigegeben").length, CheckCircle2, "bg-emerald-50", "text-emerald-600"],
-            ["Versendet", schulungen.filter(s=>effectiveEmpfaenger(s,ma).length>0).length, Send, "bg-indigo-50", "text-indigo-600"],
             ["Nachweise", schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0), FileCheck2, "bg-teal-50", "text-teal-600"],
-            ...(isAdmin ? [["Mitarbeiter", ma.length, Users, "bg-amber-50", "text-amber-600"]] : []),
+            // ponytail: "Versendet" = Anzahl Personen mit tatsächlich rausgegangener Einladung.
+            // mitarbeiter-Zeilen entstehen ausschließlich über create_link_schulungen/-raumplanung
+            // (send-invitation-email/index.ts), das immer invite_tokens + mitarbeiter zusammen anlegt
+            // — ma.length ist daher bereits diese Zahl. Bricht die Annahme (z.B. Mitarbeiter künftig
+            // ohne Einladung anlegbar), dann stattdessen distinct emails aus invite_tokens zählen.
+            // Admin-only wie "Mitarbeiter" (gleiche Zahl) - Kopfzahl bleibt sonst für
+            // Nicht-Admins sichtbar, obwohl das bewusst verhindert werden sollte (siehe 7e64b22).
+            ...(isAdmin ? [
+              ["Versendet", ma.length, Send, "bg-indigo-50", "text-indigo-600"],
+              ["Bestätigt", ma.filter(m=>m.bestaetigt).length, UserCheck, "bg-emerald-50", "text-emerald-600"],
+              ["Mitarbeiter", ma.length, Users, "bg-amber-50", "text-amber-600"],
+            ] : []),
           ].map(([label, value, Icon, iconBg, iconColor]) => (
             <div key={label} className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-3">
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}><Icon size={17} /></div>

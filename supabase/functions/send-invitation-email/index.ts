@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
       }
 
       await admin.from('invite_tokens').update({ used: true, used_at: new Date().toISOString() }).eq('token', token)
+      await admin.from('mitarbeiter').update({ bestaetigt: true }).eq('email', invite.email)
 
       return new Response(JSON.stringify({ success: true, email: invite.email }), { headers: { ...cors, 'Content-Type': 'application/json' } })
     }
