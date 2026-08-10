@@ -1029,6 +1029,8 @@ function ActionsMenu({ items }) {
 function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [maSearch, setMaSearch] = useState("");
+  const [maRolleFilter, setMaRolleFilter] = useState("");
+  const [maStatusFilter, setMaStatusFilter] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [resending, setResending] = useState(null);
@@ -1131,8 +1133,12 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
 
   const visibleMa = ma.filter(m => {
     const q = maSearch.trim().toLowerCase();
-    if (!q) return true;
-    return m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q) || m.rolle?.toLowerCase().includes(q);
+    if (q && !(m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q) || m.rolle?.toLowerCase().includes(q))) return false;
+    if (maRolleFilter && m.rolle !== maRolleFilter) return false;
+    if (maStatusFilter === "bestaetigt" && !m.bestaetigt) return false;
+    if (maStatusFilter === "ausstehend" && (m.bestaetigt || m.eingeladen === false)) return false;
+    if (maStatusFilter === "ohne_einladung" && m.eingeladen !== false) return false;
+    return true;
   });
 
   const deleteUser = async (id, email) => {
@@ -1153,7 +1159,28 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
       </div>
 
       {ma.length > 0 && (
-        <input value={maSearch} onChange={e=>setMaSearch(e.target.value)} placeholder="Name, E-Mail oder Rolle suchen…" className={`${twInput} mb-3 max-w-sm`} />
+        <div className="flex gap-2 flex-wrap mb-3">
+          <input value={maSearch} onChange={e=>setMaSearch(e.target.value)} placeholder="Name, E-Mail oder Rolle suchen…" className={`${twInput} max-w-sm`} />
+          {isAdmin && (
+            <>
+              <select value={maRolleFilter} onChange={e=>setMaRolleFilter(e.target.value)} className={`${twInput} w-auto py-2 px-3`}>
+                <option value="">Alle Rollen</option>
+                <option value="user">Nutzer</option>
+                <option value="admin">Admin</option>
+                <option value="super_admin">Super-Admin</option>
+              </select>
+              <select value={maStatusFilter} onChange={e=>setMaStatusFilter(e.target.value)} className={`${twInput} w-auto py-2 px-3`}>
+                <option value="">Alle Status</option>
+                <option value="bestaetigt">Bestätigt</option>
+                <option value="ausstehend">Einladung ausstehend</option>
+                <option value="ohne_einladung">Ohne Einladung</option>
+              </select>
+              {(maRolleFilter || maStatusFilter || maSearch) && (
+                <button onClick={()=>{setMaRolleFilter("");setMaStatusFilter("");setMaSearch("");}} className={`${twBtnSecondary} text-sm px-3 py-2`}>Filter zurücksetzen</button>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {isAdmin && ma.length > 0 && (
@@ -1299,9 +1326,9 @@ function MitarbeiterView({ ma, setMa, showToast, isAdmin, isSuperAdmin, user, on
                       </div>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${bestaetigt ? "text-emerald-700" : "text-amber-600"}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${bestaetigt ? "bg-emerald-500" : "bg-amber-400"}`} />
-                        {bestaetigt ? "Bestätigt" : "Einladung ausstehend"}
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${bestaetigt ? "text-emerald-700" : m.eingeladen === false ? "text-slate-400" : "text-amber-600"}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${bestaetigt ? "bg-emerald-500" : m.eingeladen === false ? "bg-slate-300" : "bg-amber-400"}`} />
+                        {bestaetigt ? "Bestätigt" : m.eingeladen === false ? "Ohne Einladung" : "Einladung ausstehend"}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right">
@@ -2429,12 +2456,25 @@ export default function App() {
   // Alle anderen laden nur die schlanke Public-View (id+profil) - das reicht für
   // effectiveEmpfaenger() und die Kennzahl "Mitarbeiter", ohne Kolleg:innen-Daten
   // preiszugeben (auf Datenbankebene abgesichert, nicht nur in der Oberfläche versteckt).
+  //
+  // Zusätzlich für Admins: invite_tokens liefert, wer tatsächlich eine Einladung bekam.
+  // Wichtig, weil eine mitarbeiter-Zeile NICHT zuverlässig bedeutet, dass je eine Einladung
+  // rausging - 6 von 108 Zeilen stammen aus einer Direktanlage vor Einführung des
+  // Einladungssystems (28.05.2026) und haben nie eine invite_tokens-Zeile bekommen.
   const loadMitarbeiter = () => {
-    const query = isAdmin
-      ? supabase.from("mitarbeiter").select("*").order("name")
-      : supabase.from("mitarbeiter_profile_public").select("*");
-    query.then(({ data, error }) => {
-      if (!error && data) setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
+    if (!isAdmin) {
+      supabase.from("mitarbeiter_profile_public").select("*").then(({ data, error }) => {
+        if (!error && data) setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false })));
+      });
+      return;
+    }
+    Promise.all([
+      supabase.from("mitarbeiter").select("*").order("name"),
+      supabase.from("invite_tokens").select("email"),
+    ]).then(([{ data, error }, { data: tokens }]) => {
+      if (error || !data) return;
+      const eingeladen = new Set((tokens || []).map(t => t.email));
+      setMa(data.map(m => ({ ...m, bestaetigt: m.bestaetigt || false, eingeladen: eingeladen.has(m.email) })));
     });
   };
   useEffect(() => { if (user) loadMitarbeiter(); }, [user, isAdmin]);
@@ -2623,15 +2663,13 @@ export default function App() {
             ["Schulungen", schulungen.length, GraduationCap, "bg-blue-50", "text-blue-600"],
             ["Freigegeben", schulungen.filter(s=>s.status==="Freigegeben").length, CheckCircle2, "bg-emerald-50", "text-emerald-600"],
             ["Nachweise", schulungen.reduce((a,s)=>a+Object.keys(s.nachweise||{}).length,0), FileCheck2, "bg-teal-50", "text-teal-600"],
-            // ponytail: "Versendet" = Anzahl Personen mit tatsächlich rausgegangener Einladung.
-            // mitarbeiter-Zeilen entstehen ausschließlich über create_link_schulungen/-raumplanung
-            // (send-invitation-email/index.ts), das immer invite_tokens + mitarbeiter zusammen anlegt
-            // — ma.length ist daher bereits diese Zahl. Bricht die Annahme (z.B. Mitarbeiter künftig
-            // ohne Einladung anlegbar), dann stattdessen distinct emails aus invite_tokens zählen.
-            // Admin-only wie "Mitarbeiter" (gleiche Zahl) - Kopfzahl bleibt sonst für
-            // Nicht-Admins sichtbar, obwohl das bewusst verhindert werden sollte (siehe 7e64b22).
+            // ponytail: "Versendet" = Anzahl Personen mit tatsächlich existierender invite_tokens-Zeile
+            // (m.eingeladen, aus loadMitarbeiter). NICHT ma.length: mitarbeiter-Zeilen können auch ohne
+            // Einladung entstehen (6 von 108 sind Direktanlagen vor dem Einladungssystem, 28.05.2026).
+            // Admin-only wie "Mitarbeiter" - Kopfzahl bleibt sonst für Nicht-Admins sichtbar,
+            // obwohl das bewusst verhindert werden sollte (siehe 7e64b22).
             ...(isAdmin ? [
-              ["Versendet", ma.length, Send, "bg-indigo-50", "text-indigo-600"],
+              ["Versendet", ma.filter(m=>m.eingeladen).length, Send, "bg-indigo-50", "text-indigo-600"],
               ["Bestätigt", ma.filter(m=>m.bestaetigt).length, UserCheck, "bg-emerald-50", "text-emerald-600"],
               ["Mitarbeiter", ma.length, Users, "bg-amber-50", "text-amber-600"],
             ] : []),
